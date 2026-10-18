@@ -1,0 +1,1552 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>策略复盘仪表盘 · DSH</title>
+<style>
+  :root{
+    --bg:#070b14;
+    --panel:rgba(15,23,42,.82);
+    --panel-2:rgba(11,18,32,.9);
+    --line:rgba(148,163,184,.16);
+    --text:#e6edf9;
+    --muted:#8fa0bf;
+    --muted-2:#6b7c9c;
+    --cyan:#22d3ee;
+    --violet:#a78bfa;
+    --amber:#fbbf24;
+    --green:#34d399;
+    --red:#fb7185;
+    --radius:18px;
+  }
+  *{box-sizing:border-box}
+  html,body{margin:0;padding:0}
+  body{
+    min-height:100vh;
+    color:var(--text);
+    background:
+      radial-gradient(1200px 620px at 8% -12%, rgba(34,211,238,.14), transparent 60%),
+      radial-gradient(1000px 520px at 96% 0%, rgba(167,139,250,.13), transparent 55%),
+      radial-gradient(900px 500px at 50% 110%, rgba(251,191,36,.06), transparent 55%),
+      var(--bg);
+    font-family: ui-sans-serif, -apple-system, "Segoe UI", "Microsoft YaHei", "PingFang SC", sans-serif;
+    -webkit-font-smoothing:antialiased;
+  }
+  body::before{
+    content:"";
+    position:fixed; inset:0; pointer-events:none; z-index:0;
+    background-image:
+      linear-gradient(rgba(148,163,184,.045) 1px, transparent 1px),
+      linear-gradient(90deg, rgba(148,163,184,.045) 1px, transparent 1px);
+    background-size:52px 52px;
+    mask-image:linear-gradient(to bottom, rgba(0,0,0,.8), transparent 75%);
+  }
+  .page{position:relative; z-index:1; max-width:1280px; margin:0 auto; padding:34px 24px 64px}
+  header{position:relative}
+  .topline{display:flex; align-items:center; justify-content:space-between; gap:16px; flex-wrap:wrap}
+  .brand{display:flex; align-items:center; gap:10px; font-size:11px; letter-spacing:.2em; color:var(--muted-2); text-transform:uppercase}
+  .brand .dot{width:26px;height:26px;border-radius:9px;background:linear-gradient(135deg,var(--cyan),var(--violet));box-shadow:0 0 22px rgba(34,211,238,.35)}
+  .brand b{color:var(--cyan);font-weight:700}
+  .actions{display:flex; gap:8px; align-items:center}
+  .btn{
+    border:1px solid var(--line); color:var(--text); background:rgba(148,163,184,.06);
+    border-radius:10px; padding:8px 12px; font-size:12px; cursor:pointer; text-decoration:none;
+    transition:background .15s, border-color .15s, transform .15s;
+  }
+  .btn:hover{background:rgba(148,163,184,.12);border-color:rgba(148,163,184,.3);transform:translateY(-1px)}
+  .btn.primary{border-color:rgba(34,211,238,.35);background:rgba(34,211,238,.12);color:#c8f8ff}
+  h1{font-size:clamp(30px,4vw,46px); line-height:1.08; letter-spacing:-.03em; margin:22px 0 8px}
+  h1 span{background:linear-gradient(90deg,#e6edf9 10%,#67e8f9 55%,#c4b5fd 100%);-webkit-background-clip:text;background-clip:text;color:transparent}
+  .lede{margin:0;color:var(--muted);font-size:14px;max-width:740px;line-height:1.7}
+  .pill-row{display:flex;gap:8px;flex-wrap:wrap;margin-top:16px}
+  .pill{display:inline-flex;align-items:center;gap:6px;border:1px solid var(--line);background:rgba(15,23,42,.55);border-radius:999px;padding:6px 10px;font-size:11px;color:var(--muted)}
+  .pill b{color:var(--text);font-weight:600}
+  .pill .live{width:6px;height:6px;border-radius:50%;background:var(--green);box-shadow:0 0 8px rgba(52,211,153,.7)}
+  .pill.warn{border-color:rgba(251,191,36,.3);background:rgba(251,191,36,.08);color:#fde68a}
+  .pill.warn .live{background:var(--amber);box-shadow:0 0 8px rgba(251,191,36,.7)}
+  .alert{
+    margin-top:18px;border:1px solid rgba(251,191,36,.28);background:rgba(251,191,36,.08);
+    color:#fde68a;border-radius:12px;padding:10px 14px;font-size:12px;line-height:1.6;
+  }
+  .hero{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:16px;margin:26px 0 18px}
+  .card{
+    background:linear-gradient(180deg,var(--panel),var(--panel-2));
+    border:1px solid var(--line);border-radius:var(--radius);
+    box-shadow:0 18px 50px rgba(0,0,0,.22);
+  }
+  .strategy{position:relative;overflow:hidden;padding:20px;border-top:3px solid var(--accent)}
+  .strategy::after{
+    content:"";position:absolute;width:220px;height:220px;right:-100px;top:-120px;border-radius:50%;
+    background:radial-gradient(circle,var(--accent),transparent 68%);opacity:.13;pointer-events:none;
+  }
+  .strategy-top{display:flex;justify-content:space-between;align-items:flex-start;gap:12px;position:relative}
+  .eyebrow{font-size:10px;letter-spacing:.16em;color:var(--muted-2);text-transform:uppercase}
+  .strategy h2{font-size:20px;margin:6px 0 3px;letter-spacing:-.01em}
+  .symbol{font-size:12px;color:var(--muted)}
+  .badge{display:inline-flex;align-items:center;gap:5px;border-radius:999px;padding:5px 9px;font-size:11px;white-space:nowrap;border:1px solid transparent}
+  .badge.long{color:#a7f3d0;background:rgba(16,185,129,.13);border-color:rgba(52,211,153,.28)}
+  .badge.flat{color:#cbd5e1;background:rgba(148,163,184,.1);border-color:rgba(148,163,184,.2)}
+  .badge .dot{width:6px;height:6px;border-radius:50%;background:currentColor}
+  .big-return{font-size:34px;font-weight:750;letter-spacing:-.04em;margin-top:20px;line-height:1}
+  .big-return.up{color:var(--green)}
+  .big-return.down{color:var(--red)}
+  .big-label{font-size:11px;color:var(--muted);margin-top:7px;letter-spacing:.03em}
+  .kpi-grid{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-top:18px}
+  .kpi{border:1px solid rgba(148,163,184,.1);background:rgba(148,163,184,.035);border-radius:10px;padding:9px 10px}
+  .kpi .label{font-size:10px;color:var(--muted-2);display:block;margin-bottom:4px;white-space:nowrap}
+  .kpi .value{font-size:13px;font-weight:650;color:#dbe7f8;font-variant-numeric:tabular-nums}
+  .kpi .value.up{color:var(--green)} .kpi .value.down{color:var(--red)}
+  .strategy-foot{display:flex;justify-content:space-between;gap:10px;border-top:1px solid rgba(148,163,184,.1);margin-top:16px;padding-top:12px;font-size:10px;color:var(--muted-2)}
+  .strategy-foot b{color:var(--muted);font-weight:500}
+  .section-head{display:flex;align-items:end;justify-content:space-between;gap:12px;margin:30px 0 12px}
+  .section-head h2{font-size:18px;margin:0;letter-spacing:-.01em}
+  .section-head p{margin:0;color:var(--muted-2);font-size:11px}
+  .charts{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:16px}
+  .chart-card{padding:16px}
+  .chart-head{display:flex;justify-content:space-between;align-items:flex-start;gap:8px}
+  .chart-head h3{font-size:13px;margin:0;color:#dbe7f8}
+  .chart-head span{display:block;font-size:10px;color:var(--muted-2);margin-top:4px}
+  .chart-value{font-size:12px;color:var(--text);font-variant-numeric:tabular-nums;text-align:right}
+  .chart-value small{display:block;color:var(--muted-2);font-size:10px;font-weight:400;margin-top:3px}
+  .chart-wrap{position:relative;margin-top:8px;min-height:230px}
+  canvas{display:block;width:100%;height:230px;cursor:crosshair}
+  .chart-tip{
+    position:absolute;display:none;width:176px;padding:8px 10px;border-radius:10px;
+    background:rgba(7,11,20,.96);border:1px solid rgba(148,163,184,.28);
+    box-shadow:0 12px 30px rgba(0,0,0,.4);font-size:11px;line-height:1.55;color:var(--muted);
+    pointer-events:none;z-index:3;white-space:nowrap;
+  }
+  .chart-tip b{color:var(--text);font-weight:600}
+  .chart-tip .num{color:#c8f8ff;font-variant-numeric:tabular-nums}
+  .panel{padding:18px;margin-top:22px}
+  .table-wrap{overflow:auto;margin-top:12px;border-radius:12px;border:1px solid rgba(148,163,184,.1)}
+  table{width:100%;border-collapse:collapse;font-size:12px;min-width:900px}
+  thead th{text-align:left;color:var(--muted-2);font-weight:500;font-size:10px;letter-spacing:.04em;background:rgba(148,163,184,.045);padding:10px 12px;border-bottom:1px solid var(--line);white-space:nowrap}
+  tbody td{padding:12px;border-bottom:1px solid rgba(148,163,184,.08);color:#d7e2f4;font-variant-numeric:tabular-nums;white-space:nowrap}
+  tbody tr:last-child td{border-bottom:none}
+  tbody tr:hover td{background:rgba(148,163,184,.035)}
+  .strategy-cell{display:flex;align-items:center;gap:8px}
+  .dot-mark{width:7px;height:7px;border-radius:50%;background:var(--accent);box-shadow:0 0 10px var(--accent)}
+  .muted{color:var(--muted-2)}
+  .up{color:var(--green)} .down{color:var(--red)}
+  .two-col{display:grid;grid-template-columns:1.1fr .9fr;gap:16px}
+  .glossary{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-top:12px}
+  .glossary-item{border:1px solid rgba(148,163,184,.1);background:rgba(148,163,184,.03);border-radius:10px;padding:11px 12px}
+  .glossary-item b{display:block;font-size:12px;color:#dbe7f8;margin-bottom:4px}
+  .glossary-item p{margin:0;font-size:11px;color:var(--muted);line-height:1.6}
+  .rule-list{display:flex;flex-direction:column;gap:10px;margin-top:12px}
+  .rule{border:1px solid rgba(148,163,184,.1);background:rgba(148,163,184,.03);border-radius:10px;padding:12px}
+  .rule-top{display:flex;justify-content:space-between;gap:8px;align-items:center}
+  .rule-top b{font-size:12px;color:#dbe7f8}
+  .rule-top span{font-size:10px;color:var(--muted-2)}
+  .rule p{margin:7px 0 0;font-size:11px;line-height:1.65;color:var(--muted)}
+  .rule .tag{display:inline-block;margin-top:8px;margin-right:6px;font-size:10px;color:#a5f3fc;background:rgba(34,211,238,.08);border:1px solid rgba(34,211,238,.18);padding:3px 7px;border-radius:999px}
+  .quality-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:12px;margin-top:12px}
+  .quality{border:1px solid rgba(148,163,184,.1);background:rgba(148,163,184,.03);border-radius:12px;padding:12px}
+  .quality-top{display:flex;justify-content:space-between;align-items:center;gap:8px;margin-bottom:8px}
+  .quality-top b{font-size:12px;color:#dbe7f8}
+  .status{font-size:10px;padding:3px 7px;border-radius:999px;border:1px solid transparent}
+  .status.ok{color:#a7f3d0;background:rgba(16,185,129,.1);border-color:rgba(52,211,153,.22)}
+  .status.warn{color:#fde68a;background:rgba(251,191,36,.1);border-color:rgba(251,191,36,.24)}
+  .quality dl{display:grid;grid-template-columns:76px 1fr;gap:4px 8px;margin:0;font-size:10px;line-height:1.5}
+  .quality dt{color:var(--muted-2)} .quality dd{margin:0;color:var(--muted);word-break:break-all}
+  .disclaimer{margin-top:24px;color:var(--muted-2);font-size:10px;line-height:1.8;border-top:1px solid rgba(148,163,184,.1);padding-top:14px}
+  footer{margin-top:18px;display:flex;justify-content:space-between;gap:12px;color:var(--muted-2);font-size:10px;flex-wrap:wrap}
+
+  /* tabs + interactive app */
+  .tabs{display:flex;gap:4px;border-bottom:1px solid var(--line);margin:22px 0 8px;overflow:auto}
+  .tab-btn{appearance:none;border:0;background:transparent;color:var(--muted);padding:10px 14px;font-size:12px;cursor:pointer;border-bottom:2px solid transparent;white-space:nowrap;font-family:inherit}
+  .tab-btn:hover{color:var(--text)}
+  .tab-btn.active{color:#c8f8ff;border-bottom-color:var(--cyan)}
+  .tab-panel{padding-top:8px}
+  [hidden]{display:none!important}
+  .toolbar{display:flex;align-items:flex-end;gap:12px;flex-wrap:wrap;padding:14px 16px}
+  .field{display:flex;flex-direction:column;gap:6px;min-width:150px}
+  .field label{font-size:10px;color:var(--muted-2);letter-spacing:.04em}
+  .field select,.field input,.field textarea{
+    background:rgba(7,11,20,.65);border:1px solid rgba(148,163,184,.22);border-radius:9px;
+    color:var(--text);padding:8px 10px;font-size:12px;font-family:inherit;outline:none;min-height:34px;
+  }
+  .field select:focus,.field input:focus,.field textarea:focus{border-color:rgba(34,211,238,.55);box-shadow:0 0 0 3px rgba(34,211,238,.08)}
+  .field input[type=number]{font-variant-numeric:tabular-nums}
+  .segmented{display:inline-flex;border:1px solid var(--line);border-radius:9px;overflow:hidden}
+  .segmented button{appearance:none;border:0;background:transparent;color:var(--muted);padding:8px 11px;font-size:11px;cursor:pointer;font-family:inherit}
+  .segmented button.active{background:rgba(34,211,238,.14);color:#c8f8ff}
+  .stock-head{display:flex;justify-content:space-between;align-items:flex-end;gap:16px;padding:18px 20px;margin-top:14px;flex-wrap:wrap}
+  .stock-title{display:flex;align-items:baseline;gap:10px;flex-wrap:wrap}
+  .stock-title h2{font-size:22px;margin:0}
+  .stock-title span{font-size:12px;color:var(--muted-2)}
+  .stock-price{font-size:32px;font-weight:750;letter-spacing:-.03em;font-variant-numeric:tabular-nums}
+  .stock-price small{font-size:12px;font-weight:500;margin-left:8px;letter-spacing:0}
+  .stat-grid{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:10px;margin-top:14px}
+  .stat{border:1px solid rgba(148,163,184,.1);background:rgba(148,163,184,.03);border-radius:12px;padding:11px 12px}
+  .stat .k{font-size:10px;color:var(--muted-2);display:block;margin-bottom:5px}
+  .stat .v{font-size:14px;font-weight:650;color:#dbe7f8;font-variant-numeric:tabular-nums}
+  canvas.chart-lg{height:340px}
+  canvas.chart-md{height:240px}
+  canvas.chart-sm{height:150px}
+  .chart-wrap canvas{width:100%}
+  .chart-legend{display:flex;gap:14px;flex-wrap:wrap;font-size:10px;color:var(--muted-2);margin:8px 0 0}
+  .chart-legend i{display:inline-block;width:14px;height:2px;border-radius:2px;margin-right:5px;vertical-align:middle}
+  .two-col.equal{grid-template-columns:1fr 1fr}
+  .strategy-layout{display:grid;grid-template-columns:360px minmax(0,1fr);gap:16px;margin-top:14px}
+  .form-grid{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+  .form-grid .wide{grid-column:1/-1}
+  .form-actions{display:flex;gap:8px;flex-wrap:wrap;margin-top:14px}
+  .result-cards{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:10px;margin:12px 0}
+  .result-card{border:1px solid rgba(148,163,184,.1);background:rgba(148,163,184,.03);border-radius:11px;padding:10px 12px}
+  .result-card .k{font-size:10px;color:var(--muted-2);display:block;margin-bottom:4px}
+  .result-card .v{font-size:17px;font-weight:700;font-variant-numeric:tabular-nums;color:#dbe7f8}
+  .result-card .v.up{color:var(--green)} .result-card .v.down{color:var(--red)}
+  .watch-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(220px,1fr));gap:10px;margin-top:12px}
+  .watch-card{border:1px solid rgba(148,163,184,.12);background:rgba(148,163,184,.03);border-radius:12px;padding:12px;cursor:pointer;position:relative}
+  .watch-card:hover{border-color:rgba(34,211,238,.32);background:rgba(34,211,238,.04)}
+  .watch-card b{display:block;font-size:13px;color:#dbe7f8;padding-right:24px}
+  .watch-card .code{font-size:10px;color:var(--muted-2);margin-top:2px}
+  .watch-card .px{font-size:18px;font-weight:700;margin-top:8px;font-variant-numeric:tabular-nums}
+  .watch-card .rm{position:absolute;right:8px;top:8px;border:0;background:transparent;color:var(--muted-2);cursor:pointer;font-size:14px;line-height:1}
+  .watch-card .rm:hover{color:var(--red)}
+  .saved-row{display:flex;justify-content:space-between;align-items:center;gap:12px;padding:12px 0;border-bottom:1px solid rgba(148,163,184,.08);flex-wrap:wrap}
+  .saved-row:last-child{border-bottom:0}
+  .saved-row .meta{font-size:10px;color:var(--muted-2);margin-top:3px}
+  .saved-actions{display:flex;gap:6px;flex-wrap:wrap}
+  .saved-actions .btn{padding:6px 9px;font-size:11px}
+  .empty{color:var(--muted-2);font-size:12px;padding:14px 0}
+  .auto-state{border:1px solid rgba(52,211,153,.22);background:rgba(16,185,129,.06);border-radius:12px;padding:14px 15px;line-height:1.75}
+  .auto-state.paused{border-color:rgba(251,191,36,.3);background:rgba(251,191,36,.075)}
+  .auto-state .head{display:flex;align-items:center;gap:8px;margin-bottom:7px;flex-wrap:wrap}
+  .auto-state .head b{font-size:13px;color:#e6edf9}
+  .auto-state .head .status{font-size:10px}
+  .auto-state p{margin:5px 0;font-size:11.5px;color:#b9c7dd}
+  .auto-state code{color:#fde68a;background:rgba(251,191,36,.1);border:1px solid rgba(251,191,36,.18);border-radius:5px;padding:1px 5px;font-size:10.5px}
+  .auto-state:not(.paused) code{color:#a5f3fc;background:rgba(34,211,238,.08);border-color:rgba(34,211,238,.16)}
+  .note-area{width:100%;min-height:150px;resize:vertical;background:rgba(7,11,20,.65);border:1px solid rgba(148,163,184,.22);border-radius:10px;color:var(--text);padding:12px;font-size:12px;line-height:1.7;font-family:inherit}
+  .toast{position:fixed;right:22px;bottom:22px;z-index:99;background:rgba(7,11,20,.96);border:1px solid rgba(34,211,238,.35);color:#c8f8ff;padding:10px 14px;border-radius:10px;font-size:12px;box-shadow:0 14px 40px rgba(0,0,0,.45);opacity:0;transform:translateY(8px);transition:.2s;pointer-events:none}
+  .toast.show{opacity:1;transform:none}
+  .mini-table{width:100%;border-collapse:collapse;font-size:11px;margin-top:8px}
+  .mini-table th{text-align:left;color:var(--muted-2);font-weight:500;padding:7px 8px;border-bottom:1px solid var(--line);white-space:nowrap}
+  .mini-table td{padding:8px;border-bottom:1px solid rgba(148,163,184,.08);font-variant-numeric:tabular-nums;white-space:nowrap}
+  @media (max-width:1080px){
+    .hero,.charts,.quality-grid{grid-template-columns:1fr}
+    .two-col{grid-template-columns:1fr}
+    .strategy-layout{grid-template-columns:1fr}
+    .stat-grid{grid-template-columns:1fr 1fr}
+  }
+  @media (max-width:720px){
+    .page{padding:22px 14px 48px}
+    .glossary{grid-template-columns:1fr}
+    .kpi-grid{grid-template-columns:1fr 1fr}
+    .big-return{font-size:30px}
+    .stat-grid{grid-template-columns:1fr 1fr}
+    .form-grid{grid-template-columns:1fr}
+    .result-cards{grid-template-columns:1fr 1fr}
+  }
+</style>
+</head>
+<body>
+<div class="page">
+  <header>
+    <div class="topline">
+      <div class="brand"><span class="dot"></span><span><b>DSH</b> · DAILY REVIEW</span></div>
+      <div class="actions">
+        <button class="btn" id="refresh" type="button">刷新</button>
+        <a class="btn primary" href="reports/latest.md" target="_blank" rel="noreferrer">原始报告</a>
+      </div>
+    </div>
+    <h1><span>策略复盘仪表盘</span></h1>
+    <p class="lede">三策略日线复盘：双均线、RSI、20 日动量。把仓位、当日盈亏、累计收益、回撤和风险指标放在一页，方便每天收盘后快速扫一眼。</p>
+    <div class="pill-row">
+      <span class="pill" id="autoStatusPill"><span class="live"></span>自动复盘 <b id="autoStatus">—</b></span>
+      <span class="pill"><span class="live"></span>数据截至 <b id="reportDate">—</b></span>
+      <span class="pill">生成于 <b id="generatedAt">—</b></span>
+      <span class="pill">策略数 <b id="strategyCount">—</b></span>
+      <span class="pill">初始资金 <b id="initialCapital">—</b></span>
+    </div>
+    <div id="alerts"></div>
+  </header>
+
+  <nav class="tabs" id="tabs" aria-label="页面导航">
+    <button class="tab-btn active" data-tab="overview" type="button">总览</button>
+    <button class="tab-btn" data-tab="stock" type="button">选股 / 个股</button>
+    <button class="tab-btn" data-tab="strategy" type="button">策略定制</button>
+    <button class="tab-btn" data-tab="my" type="button">我的操作台</button>
+  </nav>
+
+  <main>
+  <section id="tab-overview" class="tab-panel">
+  <section class="hero" id="hero" aria-label="策略概览"></section>
+
+  <div class="section-head">
+    <h2>权益曲线</h2>
+    <p>完整日线权益；鼠标悬停查看单日数值</p>
+  </div>
+  <section class="charts" id="charts" aria-label="权益曲线"></section>
+
+  <section class="panel">
+    <div class="section-head" style="margin-top:0">
+      <h2>策略明细</h2>
+      <p>最新完整日线 · 按策略独立计算</p>
+    </div>
+    <div class="table-wrap">
+      <table>
+        <thead>
+          <tr>
+            <th>策略</th><th>标的</th><th>当前仓位</th><th>标的涨跌</th>
+            <th>最新日盈亏</th><th>当前浮动</th><th>累计收益</th>
+            <th>最大回撤</th><th>Sharpe</th><th>调仓次数</th><th>数据日</th>
+          </tr>
+        </thead>
+        <tbody id="detailBody"></tbody>
+      </table>
+    </div>
+  </section>
+
+  <div class="two-col">
+    <section class="panel">
+      <div class="section-head" style="margin-top:0">
+        <h2>指标说明</h2>
+        <p>看数字之前先看口径</p>
+      </div>
+      <div class="glossary">
+        <div class="glossary-item"><b>当前仓位</b><p>按最新完整日线的信号判断：多头表示持有，空仓表示不持有。不是实时成交状态。</p></div>
+        <div class="glossary-item"><b>最新日盈亏</b><p>最新一根完整日线的策略权益变化，已扣当日调仓手续费；空仓时为 0。</p></div>
+        <div class="glossary-item"><b>当前浮动</b><p>从最新收盘价到抓取时最新价的未实现盈亏；A 股收盘后通常为 0。</p></div>
+        <div class="glossary-item"><b>累计收益率</b><p>（当前权益 ÷ 初始资金 − 1）。当前权益含最新浮动，不含未来交易。</p></div>
+        <div class="glossary-item"><b>最大回撤</b><p>历史权益从峰值到之后谷值的最大跌幅，衡量“最难受的一段”。</p></div>
+        <div class="glossary-item"><b>Sharpe</b><p>日收益均值 ÷ 日收益标准差 × √年化天数；crypto 用 365，A 股用 252。越高表示单位波动换来的收益越多。</p></div>
+        <div class="glossary-item"><b>调仓次数</b><p>仓位发生变化的次数（买入和卖出都计），不是完整交易回合数。</p></div>
+        <div class="glossary-item"><b>数据源 / 缓存</b><p>优先实时拉取；网络失败时使用本地缓存，并在顶部或数据质量卡片标“缓存回退”。</p></div>
+      </div>
+    </section>
+
+    <section class="panel">
+      <div class="section-head" style="margin-top:0">
+        <h2>策略规则</h2>
+        <p>当前 config.json 的口径</p>
+      </div>
+      <div class="rule-list" id="rules"></div>
+    </section>
+  </div>
+
+  <section class="panel">
+    <div class="section-head" style="margin-top:0">
+      <h2>数据质量</h2>
+      <p>每次运行都会更新；出现“缓存回退”时先检查网络</p>
+    </div>
+    <div class="quality-grid" id="quality"></div>
+  </section>
+
+  </section>
+
+  <section id="tab-stock" class="tab-panel" hidden>
+    <div class="section-head" style="margin-top:8px">
+      <h2>选股 · 个股展示</h2>
+      <p>预置 A 股与 crypto；换标的后图表和指标立即更新</p>
+    </div>
+    <div class="card toolbar">
+      <div class="field" style="min-width:230px">
+        <label for="stockSelect">股票 / 标的</label>
+        <select id="stockSelect"></select>
+      </div>
+      <div class="field">
+        <label>显示区间</label>
+        <div class="segmented" id="stockRange">
+          <button type="button" data-range="60">60 日</button>
+          <button type="button" data-range="120">120 日</button>
+          <button type="button" class="active" data-range="250">250 日</button>
+        </div>
+      </div>
+      <button class="btn primary" id="stockRefresh" type="button">刷新图表</button>
+      <button class="btn" id="watchToggle" type="button">加入自选</button>
+      <button class="btn" id="stockToStrategy" type="button">用它定制策略</button>
+    </div>
+
+    <div class="card stock-head" id="stockHead"></div>
+    <div class="stat-grid" id="stockStats"></div>
+
+    <div class="card panel" style="margin-top:16px">
+      <div class="section-head" style="margin-top:0">
+        <h2>价格与均线</h2>
+        <p>红涨绿跌 · MA5 / MA20 / MA60</p>
+      </div>
+      <div class="chart-legend">
+        <span><i style="background:#22d3ee"></i>MA5</span>
+        <span><i style="background:#a78bfa"></i>MA20</span>
+        <span><i style="background:#fbbf24"></i>MA60</span>
+        <span>蜡烛：绿色上涨 / 红色下跌</span>
+      </div>
+      <div class="chart-wrap" style="margin-top:4px">
+        <canvas id="stockChart" class="chart-lg" aria-label="个股K线图"></canvas>
+        <div class="chart-tip" id="stockTip"></div>
+      </div>
+    </div>
+
+    <div class="two-col equal" style="margin-top:16px">
+      <div class="card panel" style="margin-top:0">
+        <div class="section-head" style="margin-top:0"><h2>RSI(14)</h2><p>30 / 70 为常用超卖/超买参考</p></div>
+        <div class="chart-wrap"><canvas id="rsiChart" class="chart-sm" aria-label="RSI"></canvas></div>
+      </div>
+      <div class="card panel" style="margin-top:0">
+        <div class="section-head" style="margin-top:0"><h2>数据与口径</h2><p>个股页的数据来自同一份缓存</p></div>
+        <div id="stockMeta"></div>
+      </div>
+    </div>
+  </section>
+
+  <section id="tab-strategy" class="tab-panel" hidden>
+    <div class="section-head" style="margin-top:8px">
+      <h2>策略定制</h2>
+      <p>选标的、选策略、改参数，立即在本机回测；不联网、不下单</p>
+    </div>
+
+    <div class="strategy-layout">
+      <div class="card panel" style="margin-top:0">
+        <div class="section-head" style="margin-top:0"><h2>参数</h2><p>改完点“运行回测”</p></div>
+        <div class="form-grid">
+          <div class="field wide">
+            <label for="strategySymbol">标的</label>
+            <select id="strategySymbol"></select>
+          </div>
+          <div class="field wide">
+            <label for="strategyType">策略类型</label>
+            <select id="strategyType">
+              <option value="ma">双均线（趋势）</option>
+              <option value="rsi">RSI（均值回归）</option>
+              <option value="momentum">动量（阈值）</option>
+            </select>
+          </div>
+          <div class="field wide">
+            <label for="strategyName">策略名称（保存用）</label>
+            <input id="strategyName" type="text" placeholder="例如：BTC-双均线-5/20">
+          </div>
+        </div>
+        <div class="form-grid" id="strategyParams" style="margin-top:10px"></div>
+        <div class="form-grid" style="margin-top:10px">
+          <div class="field"><label for="strategyFee">单边手续费 %</label><input id="strategyFee" type="number" step="0.001" value="0.1"></div>
+          <div class="field"><label for="strategyInitial">初始资金</label><input id="strategyInitial" type="number" step="1000" value="100000"></div>
+          <div class="field wide"><label for="strategyDays">回测区间</label>
+            <select id="strategyDays">
+              <option value="120">最近 120 日</option>
+              <option value="250" selected>最近 250 日</option>
+              <option value="300">最近 300 日</option>
+              <option value="0">全部数据</option>
+            </select>
+          </div>
+        </div>
+        <div class="form-actions">
+          <button class="btn primary" id="runBacktest" type="button">运行回测</button>
+          <button class="btn" id="saveStrategy" type="button">保存为我的策略</button>
+        </div>
+      </div>
+
+      <div class="card panel" style="margin-top:0">
+        <div class="section-head" style="margin-top:0"><h2>回测结果</h2><p id="backtestTitle">尚未运行</p></div>
+        <div class="result-cards" id="backtestCards"></div>
+        <div class="section-head" style="margin-top:14px"><h2>权益曲线</h2><p>按收盘价计算</p></div>
+        <div class="chart-wrap" style="margin-top:4px">
+          <canvas id="equityChart" class="chart-md" aria-label="回测权益曲线"></canvas>
+        </div>
+        <div class="section-head" style="margin-top:10px"><h2>回撤曲线</h2><p>从历史峰值向下的跌幅</p></div>
+        <div class="chart-wrap" style="margin-top:4px">
+          <canvas id="ddChart" class="chart-sm" aria-label="回测回撤曲线"></canvas>
+        </div>
+      </div>
+    </div>
+
+    <div class="card panel">
+      <div class="section-head" style="margin-top:0"><h2>交易记录</h2><p>最近 20 条仓位变化</p></div>
+      <div class="table-wrap" style="margin-top:8px">
+        <table class="mini-table" style="min-width:720px">
+          <thead><tr><th>入场日</th><th>入场价</th><th>出场日</th><th>出场价</th><th>收益</th><th>状态</th></tr></thead>
+          <tbody id="tradesBody"></tbody>
+        </table>
+      </div>
+    </div>
+  </section>
+
+  <section id="tab-my" class="tab-panel" hidden>
+    <div class="section-head" style="margin-top:8px">
+      <h2>我的操作台</h2>
+      <p>自选股、保存的策略和备注都只存在本机浏览器</p>
+    </div>
+    <div class="two-col">
+      <div class="card panel" style="margin-top:0">
+        <div class="section-head" style="margin-top:0"><h2>自选股</h2><p>点击卡片直接跳到个股页</p></div>
+        <div class="watch-grid" id="watchlist"></div>
+      </div>
+      <div class="card panel" style="margin-top:0">
+        <div class="section-head" style="margin-top:0"><h2>交易备注 / 规则</h2><p>记录你的观察，不影响回测</p></div>
+        <textarea class="note-area" id="notes" placeholder="例如：茅台动量阈值试 3%/5%/8%；BTC 双均线在震荡市假突破多……"></textarea>
+        <div class="form-actions"><button class="btn primary" id="saveNotes" type="button">保存备注</button></div>
+      </div>
+    </div>
+    <div class="card panel">
+      <div class="section-head" style="margin-top:0"><h2>自动复盘开关</h2><p>暂停后不触发 DSH Agent，也不消耗 token</p></div>
+      <div id="autoPanel"></div>
+    </div>
+
+    <div class="card panel">
+      <div class="section-head" style="margin-top:0"><h2>我的策略</h2><p>保存后可一键加载参数并重新运行</p></div>
+      <div id="savedStrategies"></div>
+    </div>
+  </section>
+  </main>
+
+  <div class="disclaimer">
+    本页是规则化回测/复盘，不是投资建议，也不执行任何交易。历史表现不代表未来收益；免费数据源可能延迟或限流。
+    日线收盘信号、收盘成交，未计滑点、冲击成本、A 股印花税、T+1、涨跌停和停牌。
+  </div>
+
+  <footer>
+    <span>DSH · daily_review · 自包含离线页面</span>
+    <span id="footerTime"></span>
+  </footer>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script>
+window.__DASHBOARD__ = __DASHBOARD_DATA__;
+(function () {
+  "use strict";
+  const D = window.__DASHBOARD__;
+  const $ = (sel, el) => (el || document).querySelector(sel);
+  const COLORS = { A: "#22d3ee", B: "#a78bfa", C: "#fbbf24" };
+  const TYPE_LABEL = { ma: "趋势跟踪", rsi: "均值回归", momentum: "动量" };
+
+  function colorFor(id) { return COLORS[id] || "#22d3ee"; }
+  function num(v, d) {
+    if (v == null || !isFinite(v)) return "—";
+    let x = Number(v);
+    if (Object.is(x, -0) || Math.abs(x) < 0.005) x = 0;
+    return x.toLocaleString("zh-CN", { minimumFractionDigits: d == null ? 2 : d, maximumFractionDigits: d == null ? 2 : d });
+  }
+  function pct(v, d) {
+    if (v == null || !isFinite(v)) return "—";
+    const n = v * 100;
+    return (n >= 0 ? "+" : "") + n.toFixed(d == null ? 2 : d) + "%";
+  }
+  function money(v, c) {
+    if (v == null || !isFinite(v)) return "—";
+    return num(v, 2) + (c ? " " + c : "");
+  }
+  function compact(v) {
+    if (v == null || !isFinite(v)) return "—";
+    const a = Math.abs(v);
+    if (a >= 1e6) return (v / 1e6).toFixed(2) + "M";
+    if (a >= 1e3) return (v / 1e3).toFixed(1) + "k";
+    return v.toFixed(0);
+  }
+  function hexA(hex, a) {
+    const s = hex.replace("#", "");
+    const r = parseInt(s.slice(0, 2), 16), g = parseInt(s.slice(2, 4), 16), b = parseInt(s.slice(4, 6), 16);
+    return "rgba(" + r + "," + g + "," + b + "," + a + ")";
+  }
+  function shortSource(s) {
+    return String(s || "").replace("Binance market-data (", "").replace(")", "").replace("Sina finance daily K-line", "Sina 日线");
+  }
+
+  function renderHeader() {
+    $("#reportDate").textContent = D.reportDate || "—";
+    $("#generatedAt").textContent = D.generatedAt || "—";
+    $("#strategyCount").textContent = (D.strategies || []).length;
+    $("#initialCapital").textContent = num(D.initialCapital, 0);
+    $("#footerTime").textContent = "更新 " + (D.generatedAt || "—");
+    const paused = !!D.autoPaused;
+    const autoStatus = document.getElementById("autoStatus");
+    const autoPill = document.getElementById("autoStatusPill");
+    if (autoStatus) autoStatus.textContent = paused ? "已暂停" : "运行中";
+    if (autoPill) autoPill.classList.toggle("warn", paused);
+    const alerts = [];
+    if (D.warnings && D.warnings.length) alerts.push("构建警告：" + D.warnings.join("；"));
+    (D.strategies || []).forEach(s => { if (s.data.stale) alerts.push(s.name + " 使用缓存（" + (s.data.error || "超过 36 小时") + "）"); });
+    $("#alerts").innerHTML = alerts.length ? '<div class="alert">' + alerts.map(x => "• " + x).join("<br>") + "</div>" : "";
+  }
+
+  function renderHero() {
+    $("#hero").innerHTML = (D.strategies || []).map(s => {
+      const color = colorFor(s.id);
+      const up = s.totalReturn >= 0;
+      const posClass = s.position ? "long" : "flat";
+      return '<article class="card strategy" style="--accent:' + color + '">' +
+        '<div class="strategy-top">' +
+          '<div><div class="eyebrow">' + s.id + " · " + (TYPE_LABEL[s.type] || s.type) + '</div>' +
+          '<h2>' + s.name + '</h2><div class="symbol">' + s.symbol + " · " + s.currency + '</div></div>' +
+          '<span class="badge ' + posClass + '"><span class="dot"></span>' + s.positionText + '</span>' +
+        '</div>' +
+        '<div class="big-return ' + (up ? "up" : "down") + '">' + pct(s.totalReturn) + '</div>' +
+        '<div class="big-label">累计收益率 · 当前权益 ' + money(s.equityNow, s.currency) + '</div>' +
+        '<div class="kpi-grid">' +
+          '<div class="kpi"><span class="label" title="最新完整日线的策略权益变化，已扣手续费">最新日盈亏</span><span class="value ' + (s.latestDayPnl >= 0 ? "up" : "down") + '">' + money(s.latestDayPnl, s.currency) + '</span></div>' +
+          '<div class="kpi"><span class="label" title="最新收盘到抓取时最新价的未实现盈亏">当前浮动</span><span class="value ' + (s.floatPnl >= 0 ? "up" : "down") + '">' + money(s.floatPnl, s.currency) + '</span></div>' +
+          '<div class="kpi"><span class="label" title="峰值到谷值的最大跌幅">最大回撤</span><span class="value">' + (s.maxDrawdown * 100).toFixed(2) + '%</span></div>' +
+          '<div class="kpi"><span class="label" title="日收益均值/标准差 × √年化天数">Sharpe</span><span class="value">' + s.sharpe.toFixed(2) + '</span></div>' +
+        '</div>' +
+        '<div class="strategy-foot"><span>数据日 <b>' + s.data.lastDate + '</b></span><span>' + shortSource(s.data.source) + '</span></div>' +
+      '</article>';
+    }).join("");
+  }
+
+  function renderCharts() {
+    $("#charts").innerHTML = (D.strategies || []).map(s => {
+      return '<article class="card chart-card">' +
+        '<div class="chart-head"><div><h3>' + s.name + '</h3><span>' + s.symbol + ' · 完整日线权益</span></div>' +
+        '<div class="chart-value">' + money(s.equityNow, s.currency) + '<small>当前权益</small></div></div>' +
+        '<div class="chart-wrap"><canvas id="chart-' + s.id + '" aria-label="' + s.name + '权益曲线"></canvas>' +
+        '<div class="chart-tip" id="tip-' + s.id + '"></div></div>' +
+        '<div class="strategy-foot"><span>起始 ' + num(D.initialCapital, 0) + '</span><span>最新 ' + s.data.lastDate + '</span></div>' +
+      '</article>';
+    }).join("");
+  }
+
+  function renderDetail() {
+    $("#detailBody").innerHTML = (D.strategies || []).map(s => {
+      const color = colorFor(s.id);
+      return "<tr>" +
+        '<td><div class="strategy-cell"><span class="dot-mark" style="--accent:' + color + '"></span><b>' + s.id + " " + s.name + "</b></div></td>" +
+        "<td>" + s.symbol + "</td>" +
+        '<td><span class="badge ' + (s.position ? "long" : "flat") + '"><span class="dot"></span>' + s.positionText + "</span></td>" +
+        '<td class="' + (s.underlyingReturn >= 0 ? "up" : "down") + '">' + pct(s.underlyingReturn) + "</td>" +
+        '<td class="' + (s.latestDayPnl >= 0 ? "up" : "down") + '">' + money(s.latestDayPnl, s.currency) + "</td>" +
+        '<td class="' + (s.floatPnl >= 0 ? "up" : "down") + '">' + money(s.floatPnl, s.currency) + "</td>" +
+        '<td class="' + (s.totalReturn >= 0 ? "up" : "down") + '"><b>' + pct(s.totalReturn) + "</b></td>" +
+        "<td>" + (s.maxDrawdown * 100).toFixed(2) + "%</td>" +
+        "<td>" + s.sharpe.toFixed(2) + "</td>" +
+        "<td>" + s.tradeCount + "</td>" +
+        '<td class="muted">' + s.data.lastDate + "</td>" +
+      "</tr>";
+    }).join("");
+  }
+
+  function renderRules() {
+    $("#rules").innerHTML = (D.strategies || []).map(s => {
+      const p = s.params || {};
+      let text = "";
+      if (s.type === "ma") text = "MA" + (p.fast || 5) + " 在 MA" + (p.slow || 20) + " 上方时持有多头；否则空仓。按收盘信号、收盘成交。";
+      else if (s.type === "rsi") text = "RSI(" + (p.period || 14) + ") 从 " + (p.oversold || 30) + " 下方回升时买入；从 " + (p.overbought || 70) + " 上方回落时卖出。其余时间保持原仓位。";
+      else if (s.type === "momentum") text = (p.lookback || 20) + " 日涨幅超过 " + ((p.threshold || 0.05) * 100).toFixed(0) + "% 时持有多头；否则空仓。";
+      return '<div class="rule"><div class="rule-top"><b>' + s.id + " · " + s.name + "</b><span>" + s.symbol + "</span></div>" +
+        "<p>" + text + "</p>" +
+        '<span class="tag">单边手续费 ' + (s.feeRate * 100).toFixed(3).replace(/0+$/, "").replace(/\.$/, "") + "%</span>" +
+        '<span class="tag">' + s.currency + "</span>" +
+        '<span class="tag">仅多/空仓</span></div>';
+    }).join("");
+  }
+
+  function renderQuality() {
+    $("#quality").innerHTML = (D.strategies || []).map(s => {
+      const stale = s.data.stale;
+      return '<div class="quality"><div class="quality-top"><b>' + s.id + " " + s.symbol + '</b><span class="status ' + (stale ? "warn" : "ok") + '">' + (stale ? "缓存回退" : "实时") + "</span></div>" +
+        "<dl><dt>数据源</dt><dd>" + (s.data.source || "—") + "</dd>" +
+        "<dt>日线条数</dt><dd>" + s.data.bars + "</dd>" +
+        "<dt>最新日线</dt><dd>" + s.data.lastDate + "</dd>" +
+        "<dt>抓取时间</dt><dd>" + (s.data.fetchedAt || "—") + "</dd>" +
+        (s.data.error ? "<dt>错误</dt><dd>" + s.data.error + "</dd>" : "") +
+        "</dl></div>";
+    }).join("");
+  }
+
+  function makeChart(canvas, tip, s) {
+    const vals = s.series.equity || [];
+    const dates = s.series.dates || [];
+    const n = Math.min(vals.length, dates.length);
+    const color = colorFor(s.id);
+    let hover = null;
+    let dims = null;
+
+    function draw() {
+      const rect = canvas.parentElement.getBoundingClientRect();
+      const w = Math.max(280, Math.floor(rect.width));
+      const h = 230;
+      const dpr = window.devicePixelRatio || 1;
+      canvas.width = Math.round(w * dpr);
+      canvas.height = Math.round(h * dpr);
+      canvas.style.width = w + "px";
+      canvas.style.height = h + "px";
+      const ctx = canvas.getContext("2d");
+      ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+      ctx.clearRect(0, 0, w, h);
+      if (n < 2) {
+        ctx.fillStyle = "#7c8aa8"; ctx.font = "12px sans-serif"; ctx.textAlign = "center";
+        ctx.fillText("暂无足够数据", w / 2, h / 2); return;
+      }
+      const pad = { l: 56, r: 12, t: 14, b: 26 };
+      const plotW = w - pad.l - pad.r;
+      const plotH = h - pad.t - pad.b;
+      let min = Math.min.apply(null, vals), max = Math.max.apply(null, vals);
+      const span = (max - min) || Math.max(1, max * 0.01);
+      min -= span * 0.08; max += span * 0.08;
+      const xAt = i => pad.l + (i / (n - 1)) * plotW;
+      const yAt = v => pad.t + ((max - v) / (max - min)) * plotH;
+
+      ctx.strokeStyle = "rgba(148,163,184,.12)"; ctx.lineWidth = 1;
+      ctx.font = '11px ui-sans-serif, "Segoe UI", sans-serif'; ctx.textAlign = "right";
+      for (let g = 0; g <= 4; g++) {
+        const y = pad.t + (plotH * g) / 4;
+        const v = max - ((max - min) * g) / 4;
+        ctx.beginPath(); ctx.moveTo(pad.l, y); ctx.lineTo(w - pad.r, y); ctx.stroke();
+        ctx.fillStyle = "#6b7c9c"; ctx.fillText(compact(v), pad.l - 8, y + 4);
+      }
+      ctx.textAlign = "center";
+      [0, Math.floor((n - 1) / 2), n - 1].forEach(i => {
+        ctx.fillStyle = "#6b7c9c"; ctx.fillText(String(dates[i]).slice(5), xAt(i), h - 8);
+      });
+
+      const grad = ctx.createLinearGradient(0, pad.t, 0, pad.t + plotH);
+      grad.addColorStop(0, hexA(color, 0.26)); grad.addColorStop(1, hexA(color, 0));
+      ctx.beginPath(); ctx.moveTo(xAt(0), yAt(vals[0]));
+      for (let i = 1; i < n; i++) ctx.lineTo(xAt(i), yAt(vals[i]));
+      ctx.lineTo(xAt(n - 1), pad.t + plotH); ctx.lineTo(xAt(0), pad.t + plotH); ctx.closePath();
+      ctx.fillStyle = grad; ctx.fill();
+
+      ctx.beginPath(); ctx.moveTo(xAt(0), yAt(vals[0]));
+      for (let i = 1; i < n; i++) ctx.lineTo(xAt(i), yAt(vals[i]));
+      ctx.strokeStyle = color; ctx.lineWidth = 2; ctx.lineJoin = "round"; ctx.lineCap = "round"; ctx.stroke();
+
+      ctx.beginPath(); ctx.arc(xAt(n - 1), yAt(vals[n - 1]), 3.2, 0, Math.PI * 2);
+      ctx.fillStyle = color; ctx.fill();
+
+      dims = { w: w, h: h, pad: pad, plotW: plotW, plotH: plotH, min: min, max: max };
+      if (hover != null && hover >= 0 && hover < n) {
+        const x = xAt(hover), y = yAt(vals[hover]);
+        ctx.strokeStyle = "rgba(230,237,249,.25)"; ctx.lineWidth = 1;
+        ctx.beginPath(); ctx.moveTo(x, pad.t); ctx.lineTo(x, pad.t + plotH); ctx.stroke();
+        ctx.beginPath(); ctx.arc(x, y, 4, 0, Math.PI * 2);
+        ctx.fillStyle = "#070b14"; ctx.fill(); ctx.strokeStyle = color; ctx.lineWidth = 2; ctx.stroke();
+      }
+    }
+
+    function onMove(e) {
+      if (!dims || n < 2) return;
+      const rect = canvas.getBoundingClientRect();
+      const mx = e.clientX - rect.left;
+      const raw = (mx - dims.pad.l) / dims.plotW;
+      let idx = Math.round(raw * (n - 1));
+      idx = Math.max(0, Math.min(n - 1, idx));
+      hover = idx;
+      draw();
+      const x = dims.pad.l + (idx / (n - 1)) * dims.plotW;
+      tip.style.display = "block";
+      tip.style.left = Math.min(Math.max(x - 84, 6), dims.w - 182) + "px";
+      tip.style.top = "10px";
+      tip.innerHTML = "<b>" + dates[idx] + "</b><br>权益 <span class='num'>" + money(vals[idx], s.currency) +
+        "</span><br>累计 <span class='num'>" + pct(vals[idx] / D.initialCapital - 1) + "</span>";
+    }
+    function onLeave() { hover = null; tip.style.display = "none"; draw(); }
+
+    canvas.addEventListener("mousemove", onMove);
+    canvas.addEventListener("mouseleave", onLeave);
+    window.addEventListener("resize", () => { draw(); });
+    draw();
+  }
+
+  function initCharts() {
+    (D.strategies || []).forEach(s => {
+      const c = document.getElementById("chart-" + s.id);
+      const t = document.getElementById("tip-" + s.id);
+      if (c && t) makeChart(c, t, s);
+    });
+  }
+
+  // ---------------------------------------------------------------------
+  // interactive app: stock picker, stock view, strategy lab, personal desk
+  // ---------------------------------------------------------------------
+  const APP = {
+    tab: "overview",
+    stockSymbol: D.defaultSymbol || "",
+    stockRange: 250,
+    stock: null,
+    lastBacktest: null,
+    watchlist: [],
+    saved: [],
+    notes: "",
+    form: null
+  };
+  const LS = {
+    watch: "dsh_watchlist_v2",
+    saved: "dsh_saved_strategies_v2",
+    notes: "dsh_notes_v2"
+  };
+
+  function esc(s) {
+    return String(s == null ? "" : s).replace(/[&<>"']/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
+  }
+  function bySymbol(sym) { return (D.universe || []).find(x => x.symbol === sym) || null; }
+  function marketLabel(m) { return m === "crypto" ? "Crypto" : "A 股"; }
+  function stat(k, v, cls) {
+    return '<div class="stat"><span class="k">' + k + '</span><span class="v ' + (cls || "") + '">' + v + '</span></div>';
+  }
+  function readLS(key, fallback) {
+    try { const v = JSON.parse(localStorage.getItem(key)); return v == null ? fallback : v; } catch (e) { return fallback; }
+  }
+  function writeLS(key, value) {
+    try { localStorage.setItem(key, JSON.stringify(value)); } catch (e) { /* private mode */ }
+  }
+  let toastTimer = null;
+  function toast(msg) {
+    const el = document.getElementById("toast");
+    if (!el) return;
+    el.textContent = msg;
+    el.classList.add("show");
+    clearTimeout(toastTimer);
+    toastTimer = setTimeout(() => el.classList.remove("show"), 2200);
+  }
+
+  function fillSymbolSelect(select, selected) {
+    if (!select) return;
+    const groups = [["ashare", "A 股"], ["crypto", "Crypto"]];
+    let html = "";
+    groups.forEach(([market, label]) => {
+      const items = (D.universe || []).filter(x => x.market === market);
+      if (!items.length) return;
+      html += '<optgroup label="' + label + '">' + items.map(x =>
+        '<option value="' + esc(x.symbol) + '">' + esc(x.name) + " · " + esc(x.symbol) + "</option>"
+      ).join("") + "</optgroup>";
+    });
+    if (!html) html = '<option value="">暂无可用标的</option>';
+    select.innerHTML = html;
+    if (selected && bySymbol(selected)) select.value = selected;
+  }
+
+  function initTabs() {
+    document.querySelectorAll(".tab-btn").forEach(btn => {
+      btn.addEventListener("click", () => switchTab(btn.dataset.tab));
+    });
+    window.addEventListener("hashchange", () => switchTab((location.hash || "#overview").slice(1), false));
+  }
+
+  function switchTab(name, updateHash) {
+    const valid = ["overview", "stock", "strategy", "my"];
+    if (!valid.includes(name)) name = "overview";
+    APP.tab = name;
+    document.querySelectorAll(".tab-btn").forEach(b => b.classList.toggle("active", b.dataset.tab === name));
+    document.querySelectorAll(".tab-panel").forEach(p => { p.hidden = p.id !== "tab-" + name; });
+    if (updateHash !== false) {
+      try { history.replaceState(null, "", "#" + name); } catch (e) { /* file:// */ }
+    }
+    requestAnimationFrame(() => {
+      if (name === "overview") {
+        initCharts();
+      } else if (name === "stock") {
+        renderStock();
+        requestAnimationFrame(() => { drawStockChart(); drawRsiChart(); });
+      } else if (name === "strategy") {
+        if (!APP.lastBacktest) runBacktest();
+        else if (APP.lastBacktest) { drawBacktestCharts(); }
+      } else if (name === "my") {
+        renderMy();
+      }
+    });
+  }
+
+  // ------------------------------ stock tab ------------------------------
+  function initStockTab() {
+    APP.stockSymbol = bySymbol(APP.stockSymbol) ? APP.stockSymbol : (D.universe[0] || {}).symbol || "";
+    fillSymbolSelect(document.getElementById("stockSelect"), APP.stockSymbol);
+    const sel = document.getElementById("stockSelect");
+    if (sel) sel.addEventListener("change", e => { APP.stockSymbol = e.target.value; renderStock(); requestAnimationFrame(() => { drawStockChart(); drawRsiChart(); }); });
+    document.querySelectorAll("#stockRange button").forEach(btn => {
+      btn.addEventListener("click", () => {
+        APP.stockRange = Number(btn.dataset.range) || 250;
+        document.querySelectorAll("#stockRange button").forEach(b => b.classList.toggle("active", b === btn));
+        requestAnimationFrame(() => { drawStockChart(); drawRsiChart(); });
+      });
+    });
+    const refresh = document.getElementById("stockRefresh");
+    if (refresh) refresh.addEventListener("click", () => { renderStock(); requestAnimationFrame(() => { drawStockChart(); drawRsiChart(); }); });
+    const watch = document.getElementById("watchToggle");
+    if (watch) watch.addEventListener("click", () => toggleWatch(APP.stockSymbol));
+    const toStrategy = document.getElementById("stockToStrategy");
+    if (toStrategy) toStrategy.addEventListener("click", () => {
+      const ss = document.getElementById("strategySymbol");
+      if (ss) ss.value = APP.stockSymbol;
+      if (APP.form) APP.form.symbol = APP.stockSymbol;
+      APP.lastBacktest = null;
+      switchTab("strategy");
+    });
+    APP.watchlist = readLS(LS.watch, null) || [D.defaultSymbol, "BTCUSDT", "ETHUSDT"].filter(x => bySymbol(x));
+    updateWatchButton();
+  }
+
+  function updateWatchButton() {
+    const btn = document.getElementById("watchToggle");
+    if (!btn) return;
+    const watched = APP.watchlist.includes(APP.stockSymbol);
+    btn.textContent = watched ? "移出自选" : "加入自选";
+    btn.classList.toggle("primary", !watched);
+  }
+
+  function renderStock() {
+    const s = bySymbol(APP.stockSymbol) || (D.universe || [])[0];
+    if (!s) {
+      const head = document.getElementById("stockHead");
+      if (head) head.innerHTML = '<div class="empty">暂无行情数据，请先运行复盘脚本抓取。</div>';
+      return;
+    }
+    APP.stock = s;
+    APP.stockSymbol = s.symbol;
+    const st = s.stats || {};
+    const up = (st.dayChange || 0) >= 0;
+    const head = document.getElementById("stockHead");
+    if (head) {
+      head.innerHTML =
+        '<div><div class="eyebrow">' + marketLabel(s.market) + " · " + esc(s.currency) + '</div>' +
+        '<div class="stock-title"><h2>' + esc(s.name) + '</h2><span>' + esc(s.symbol) + '</span></div>' +
+        '<div class="muted" style="font-size:11px;margin-top:4px">数据日 ' + esc(s.data.lastDate) + " · " + esc(s.data.source) + '</div></div>' +
+        '<div class="stock-price">' + num(st.last, 2) + '<small class="' + (up ? "up" : "down") + '">' + pct(st.dayChange) + '</small></div>';
+    }
+    const stats = document.getElementById("stockStats");
+    if (stats) {
+      stats.innerHTML = [
+        stat("20 日涨跌", pct(st.ret20), (st.ret20 || 0) >= 0 ? "up" : "down"),
+        stat("60 日涨跌", pct(st.ret60), (st.ret60 || 0) >= 0 ? "up" : "down"),
+        stat("20 日年化波动", ((st.vol20 || 0) * 100).toFixed(2) + "%"),
+        stat("RSI(14)", num(st.rsi, 1)),
+        stat("MA5", num(st.ma5, 2)),
+        stat("MA20", num(st.ma20, 2)),
+        stat("MA60", num(st.ma60, 2)),
+        stat("52 周高 / 低", num(st.high52, 2) + " / " + num(st.low52, 2))
+      ].join("");
+    }
+    const meta = document.getElementById("stockMeta");
+    if (meta) {
+      meta.innerHTML =
+        '<div class="quality" style="border:0;background:transparent;padding:0">' +
+        '<dl><dt>数据源</dt><dd>' + esc(s.data.source) + '</dd>' +
+        '<dt>日线条数</dt><dd>' + s.data.bars + '</dd>' +
+        '<dt>最新日线</dt><dd>' + esc(s.data.lastDate) + '</dd>' +
+        '<dt>抓取时间</dt><dd>' + esc(s.data.fetchedAt) + '</dd>' +
+        '<dt>状态</dt><dd><span class="status ' + (s.data.stale ? "warn" : "ok") + '">' + (s.data.stale ? "缓存回退" : "可用") + '</span></dd>' +
+        '<dt>20 日均量</dt><dd>' + compact(st.avgVol20) + '</dd>' +
+        (s.data.error ? '<dt>错误</dt><dd>' + esc(s.data.error) + '</dd>' : '') +
+        '</dl></div>';
+    }
+    updateWatchButton();
+    if (!document.getElementById("tab-stock").hidden) {
+      requestAnimationFrame(() => { drawStockChart(); drawRsiChart(); });
+    }
+  }
+
+  function drawStockChart() {
+    const canvas = document.getElementById("stockChart");
+    const tip = document.getElementById("stockTip");
+    const s = APP.stock || bySymbol(APP.stockSymbol);
+    if (!canvas || !s) return;
+    const total = s.dates.length;
+    const n = Math.min(APP.stockRange, total);
+    const start = total - n;
+    let hover = null;
+    let dims = null;
+
+    function draw() {
+      const rect = canvas.parentElement.getBoundingClientRect();
+      const w = Math.max(300, Math.floor(rect.width));
+      const h = 340;
+      const dpr = window.devicePixelRatio || 1;
+      canvas.width = Math.round(w * dpr);
+      canvas.height = Math.round(h * dpr);
+      canvas.style.width = w + "px";
+      canvas.style.height = h + "px";
+      const ctx = canvas.getContext("2d");
+      ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+      ctx.clearRect(0, 0, w, h);
+      if (n < 2) return;
+      const pad = { l: 58, r: 12, t: 16, b: 26 };
+      const plotW = w - pad.l - pad.r;
+      const plotH = h - pad.t - pad.b;
+      let min = Infinity, max = -Infinity;
+      for (let i = 0; i < n; i++) {
+        min = Math.min(min, s.low[start + i]);
+        max = Math.max(max, s.high[start + i]);
+        [s.ma5, s.ma20, s.ma60].forEach(arr => { const v = arr[start + i]; if (v != null) { min = Math.min(min, v); max = Math.max(max, v); } });
+      }
+      const span = (max - min) || Math.max(1, max * 0.01);
+      min -= span * 0.06; max += span * 0.06;
+      const step = plotW / n;
+      const xAt = i => pad.l + step * (i + 0.5);
+      const yAt = v => pad.t + ((max - v) / (max - min)) * plotH;
+
+      ctx.strokeStyle = "rgba(148,163,184,.12)"; ctx.lineWidth = 1;
+      ctx.font = '11px ui-sans-serif, "Segoe UI", sans-serif'; ctx.textAlign = "right";
+      for (let g = 0; g <= 4; g++) {
+        const y = pad.t + (plotH * g) / 4;
+        const v = max - ((max - min) * g) / 4;
+        ctx.beginPath(); ctx.moveTo(pad.l, y); ctx.lineTo(w - pad.r, y); ctx.stroke();
+        ctx.fillStyle = "#6b7c9c"; ctx.fillText(compact(v), pad.l - 8, y + 4);
+      }
+      ctx.textAlign = "center";
+      const labels = 4;
+      for (let k = 0; k < labels; k++) {
+        const idx = Math.round((n - 1) * k / (labels - 1));
+        ctx.fillStyle = "#6b7c9c"; ctx.fillText(s.dates[start + idx].slice(5), xAt(idx), h - 8);
+      }
+
+      const bodyW = Math.max(1, Math.min(7, step * 0.62));
+      for (let i = 0; i < n; i++) {
+        const o = s.open[start + i], c = s.close[start + i], hi = s.high[start + i], lo = s.low[start + i];
+        const up = c >= o;
+        ctx.strokeStyle = up ? "#34d399" : "#fb7185";
+        ctx.fillStyle = up ? "#34d399" : "#fb7185";
+        const x = xAt(i);
+        ctx.beginPath(); ctx.moveTo(x, yAt(hi)); ctx.lineTo(x, yAt(lo)); ctx.stroke();
+        const top = yAt(Math.max(o, c)), bottom = yAt(Math.min(o, c));
+        const bh = Math.max(1, bottom - top);
+        ctx.fillRect(x - bodyW / 2, top, bodyW, bh);
+      }
+
+      function maLine(values, color) {
+        ctx.beginPath(); let started = false;
+        for (let i = 0; i < n; i++) {
+          const v = values[start + i];
+          if (v == null) { started = false; continue; }
+          const x = xAt(i), y = yAt(v);
+          if (!started) { ctx.moveTo(x, y); started = true; } else ctx.lineTo(x, y);
+        }
+        ctx.strokeStyle = color; ctx.lineWidth = 1.4; ctx.stroke();
+      }
+      maLine(s.ma5, "#22d3ee");
+      maLine(s.ma20, "#a78bfa");
+      maLine(s.ma60, "#fbbf24");
+
+      dims = { w, h, pad, plotW, plotH, min, max, start, n, step };
+      if (hover != null) {
+        const x = xAt(hover);
+        ctx.strokeStyle = "rgba(230,237,249,.24)"; ctx.lineWidth = 1;
+        ctx.beginPath(); ctx.moveTo(x, pad.t); ctx.lineTo(x, pad.t + plotH); ctx.stroke();
+        ctx.beginPath(); ctx.arc(x, yAt(s.close[start + hover]), 3.4, 0, Math.PI * 2);
+        ctx.fillStyle = "#070b14"; ctx.fill(); ctx.strokeStyle = "#e6edf9"; ctx.lineWidth = 1.5; ctx.stroke();
+      }
+    }
+
+    function move(e) {
+      if (!dims) return;
+      const rect = canvas.getBoundingClientRect();
+      const mx = e.clientX - rect.left;
+      let idx = Math.round((mx - dims.pad.l) / dims.step - 0.5);
+      idx = Math.max(0, Math.min(dims.n - 1, idx));
+      hover = idx;
+      draw();
+      const i = dims.start + idx;
+      const x = dims.pad.l + dims.step * (idx + 0.5);
+      if (tip) {
+        tip.style.display = "block";
+        tip.style.left = Math.min(Math.max(x - 86, 6), dims.w - 190) + "px";
+        tip.style.top = "10px";
+        tip.innerHTML = "<b>" + s.dates[i] + "</b><br>开 " + num(s.open[i], 2) + " · 高 " + num(s.high[i], 2) +
+          "<br>低 " + num(s.low[i], 2) + " · 收 <span class='num'>" + num(s.close[i], 2) + "</span>" +
+          "<br>MA5 " + num(s.ma5[i], 2) + " · MA20 " + num(s.ma20[i], 2);
+      }
+    }
+    function leave() { hover = null; if (tip) tip.style.display = "none"; draw(); }
+    canvas.onmousemove = move;
+    canvas.onmouseleave = leave;
+    draw();
+  }
+
+  function drawRsiChart() {
+    const canvas = document.getElementById("rsiChart");
+    const s = APP.stock || bySymbol(APP.stockSymbol);
+    if (!canvas || !s) return;
+    const total = s.dates.length;
+    const n = Math.min(APP.stockRange, total);
+    const start = total - n;
+    const rect = canvas.parentElement.getBoundingClientRect();
+    const w = Math.max(280, Math.floor(rect.width));
+    const h = 150;
+    const dpr = window.devicePixelRatio || 1;
+    canvas.width = Math.round(w * dpr); canvas.height = Math.round(h * dpr);
+    canvas.style.width = w + "px"; canvas.style.height = h + "px";
+    const ctx = canvas.getContext("2d");
+    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    ctx.clearRect(0, 0, w, h);
+    const pad = { l: 34, r: 10, t: 10, b: 18 };
+    const plotW = w - pad.l - pad.r, plotH = h - pad.t - pad.b;
+    const yAt = v => pad.t + (1 - v / 100) * plotH;
+    ctx.strokeStyle = "rgba(148,163,184,.12)"; ctx.lineWidth = 1;
+    [30, 50, 70].forEach(v => {
+      ctx.setLineDash(v === 50 ? [] : [4, 4]);
+      ctx.beginPath(); ctx.moveTo(pad.l, yAt(v)); ctx.lineTo(w - pad.r, yAt(v)); ctx.stroke();
+      ctx.setLineDash([]);
+      ctx.fillStyle = "#6b7c9c"; ctx.font = '10px sans-serif'; ctx.textAlign = "right";
+      ctx.fillText(v, pad.l - 6, yAt(v) + 3);
+    });
+    ctx.beginPath(); let started = false;
+    for (let i = 0; i < n; i++) {
+      const v = s.rsi[start + i];
+      if (v == null) { started = false; continue; }
+      const x = pad.l + (i / (n - 1 || 1)) * plotW, y = yAt(v);
+      if (!started) { ctx.moveTo(x, y); started = true; } else ctx.lineTo(x, y);
+    }
+    ctx.strokeStyle = "#a78bfa"; ctx.lineWidth = 1.6; ctx.stroke();
+  }
+
+  function toggleWatch(symbol) {
+    if (!symbol) return;
+    const idx = APP.watchlist.indexOf(symbol);
+    if (idx >= 0) APP.watchlist.splice(idx, 1); else APP.watchlist.push(symbol);
+    writeLS(LS.watch, APP.watchlist);
+    updateWatchButton();
+    renderMy();
+    toast(idx >= 0 ? "已移出自选" : "已加入自选");
+  }
+
+  // ---------------------------- strategy lab -----------------------------
+  function defaultParams(type) {
+    if (type === "rsi") return { period: 14, oversold: 30, overbought: 70 };
+    if (type === "momentum") return { lookback: 20, threshold: 0.05 };
+    return { fast: 5, slow: 20 };
+  }
+
+  function initStrategyTab() {
+    const symSel = document.getElementById("strategySymbol");
+    const first = (D.config && D.config.strategies && D.config.strategies[0]) ? D.config.strategies[0] : null;
+    const startSymbol = (first && bySymbol(first.symbol)) ? first.symbol : D.defaultSymbol;
+    const startType = (first && first.type) ? first.type : "ma";
+    fillSymbolSelect(symSel, startSymbol);
+    APP.form = {
+      symbol: startSymbol || "",
+      type: startType,
+      params: (first && first.params) ? { ...first.params } : defaultParams(startType),
+      feeRate: (first && first.fee_rate != null) ? first.fee_rate : 0.001,
+      initial: D.initialCapital || 100000,
+      days: 250
+    };
+    const typeSel = document.getElementById("strategyType");
+    if (typeSel) typeSel.value = startType;
+    if (typeSel) typeSel.addEventListener("change", () => {
+      APP.form.type = typeSel.value;
+      APP.form.params = defaultParams(typeSel.value);
+      renderParamFields();
+      const nm = document.getElementById("strategyName");
+      if (nm && !nm.value) nm.placeholder = (bySymbol(APP.form.symbol) || {}).name + " · " + typeSel.options[typeSel.selectedIndex].text;
+    });
+    if (symSel) symSel.addEventListener("change", () => { APP.form.symbol = symSel.value; });
+    const fee = document.getElementById("strategyFee");
+    const init = document.getElementById("strategyInitial");
+    const days = document.getElementById("strategyDays");
+    if (fee) fee.value = (APP.form.feeRate * 100).toFixed(3);
+    if (init) init.value = String(APP.form.initial);
+    if (days) days.value = "250";
+    renderParamFields();
+    const run = document.getElementById("runBacktest");
+    if (run) run.addEventListener("click", runBacktest);
+    const save = document.getElementById("saveStrategy");
+    if (save) save.addEventListener("click", saveStrategy);
+  }
+
+  function renderParamFields() {
+    const box = document.getElementById("strategyParams");
+    if (!box || !APP.form) return;
+    const p = APP.form.params || {};
+    let html = "";
+    if (APP.form.type === "ma") {
+      html = '<div class="field"><label for="p-fast">快线 MA</label><input id="p-fast" type="number" min="2" step="1" value="' + (p.fast || 5) + '"></div>' +
+        '<div class="field"><label for="p-slow">慢线 MA</label><input id="p-slow" type="number" min="3" step="1" value="' + (p.slow || 20) + '"></div>';
+    } else if (APP.form.type === "rsi") {
+      html = '<div class="field"><label for="p-period">RSI 周期</label><input id="p-period" type="number" min="2" step="1" value="' + (p.period || 14) + '"></div>' +
+        '<div class="field"><label for="p-oversold">超卖阈值</label><input id="p-oversold" type="number" min="1" max="99" step="1" value="' + (p.oversold || 30) + '"></div>' +
+        '<div class="field"><label for="p-overbought">超买阈值</label><input id="p-overbought" type="number" min="1" max="99" step="1" value="' + (p.overbought || 70) + '"></div>';
+    } else {
+      html = '<div class="field"><label for="p-lookback">回看天数</label><input id="p-lookback" type="number" min="2" step="1" value="' + (p.lookback || 20) + '"></div>' +
+        '<div class="field"><label for="p-threshold">动量阈值 %</label><input id="p-threshold" type="number" min="0.1" step="0.1" value="' + ((p.threshold || 0.05) * 100).toFixed(1) + '"></div>';
+    }
+    box.innerHTML = html;
+  }
+
+  function readStrategyForm() {
+    const type = document.getElementById("strategyType").value;
+    const symbol = document.getElementById("strategySymbol").value;
+    const fee = Number(document.getElementById("strategyFee").value) / 100;
+    const initial = Number(document.getElementById("strategyInitial").value);
+    const days = Number(document.getElementById("strategyDays").value);
+    const params = {};
+    if (type === "ma") {
+      params.fast = Math.max(2, Math.round(Number(document.getElementById("p-fast").value) || 5));
+      params.slow = Math.max(3, Math.round(Number(document.getElementById("p-slow").value) || 20));
+      if (params.fast >= params.slow) throw new Error("快线必须小于慢线");
+    } else if (type === "rsi") {
+      params.period = Math.max(2, Math.round(Number(document.getElementById("p-period").value) || 14));
+      params.oversold = Math.max(1, Math.min(99, Math.round(Number(document.getElementById("p-oversold").value) || 30)));
+      params.overbought = Math.max(1, Math.min(99, Math.round(Number(document.getElementById("p-overbought").value) || 70)));
+      if (params.oversold >= params.overbought) throw new Error("超卖阈值必须小于超买阈值");
+    } else {
+      params.lookback = Math.max(2, Math.round(Number(document.getElementById("p-lookback").value) || 20));
+      params.threshold = Math.max(0.001, Number(document.getElementById("p-threshold").value) / 100 || 0.05);
+    }
+    if (!symbol) throw new Error("请选择标的");
+    if (!isFinite(initial) || initial <= 0) throw new Error("初始资金必须大于 0");
+    if (!isFinite(fee) || fee < 0 || fee > 0.05) throw new Error("手续费率看起来不合理");
+    return { symbol, type, params, feeRate: fee, initial, days };
+  }
+
+  function strategyPositions(type, closes, params) {
+    const n = closes.length;
+    if (type === "ma") {
+      const fast = sma(closes, params.fast), slow = sma(closes, params.slow);
+      return closes.map((_, i) => (fast[i] != null && slow[i] != null && fast[i] > slow[i]) ? 1 : 0);
+    }
+    if (type === "rsi") {
+      const r = rsi(closes, params.period);
+      const pos = new Array(n).fill(0);
+      let state = 0;
+      for (let i = 1; i < n; i++) {
+        const a = r[i - 1], b = r[i];
+        if (state === 0 && a != null && b != null && a <= params.oversold && b > params.oversold) state = 1;
+        else if (state === 1 && a != null && b != null && a >= params.overbought && b < params.overbought) state = 0;
+        pos[i] = state;
+      }
+      return pos;
+    }
+    const m = momentum(closes, params.lookback);
+    return closes.map((_, i) => (m[i] != null && m[i] > params.threshold) ? 1 : 0);
+  }
+
+  function sma(values, window) {
+    const out = new Array(values.length).fill(null);
+    let sum = 0;
+    for (let i = 0; i < values.length; i++) {
+      sum += values[i];
+      if (i >= window) sum -= values[i - window];
+      if (i >= window - 1) out[i] = sum / window;
+    }
+    return out;
+  }
+
+  function rsi(values, period) {
+    const out = new Array(values.length).fill(null);
+    if (values.length <= period) return out;
+    let gain = 0, loss = 0;
+    for (let i = 1; i <= period; i++) {
+      const d = values[i] - values[i - 1];
+      gain += Math.max(d, 0); loss += Math.max(-d, 0);
+    }
+    let ag = gain / period, al = loss / period;
+    const val = (g, l) => (g === 0 && l === 0) ? 50 : (l === 0 ? 100 : 100 - 100 / (1 + g / l));
+    out[period] = val(ag, al);
+    for (let i = period + 1; i < values.length; i++) {
+      const d = values[i] - values[i - 1];
+      ag = (ag * (period - 1) + Math.max(d, 0)) / period;
+      al = (al * (period - 1) + Math.max(-d, 0)) / period;
+      out[i] = val(ag, al);
+    }
+    return out;
+  }
+
+  function momentum(values, lookback) {
+    const out = new Array(values.length).fill(null);
+    for (let i = lookback; i < values.length; i++) out[i] = values[i] / values[i - lookback] - 1;
+    return out;
+  }
+
+  function backtestJS(cfg) {
+    const stock = bySymbol(cfg.symbol);
+    if (!stock) throw new Error("找不到标的行情");
+    const take = cfg.days && cfg.days > 0 ? Math.min(cfg.days, stock.close.length) : stock.close.length;
+    const start = stock.close.length - take;
+    const dates = stock.dates.slice(start);
+    const closes = stock.close.slice(start);
+    const positions = strategyPositions(cfg.type, closes, cfg.params);
+    const n = closes.length;
+    const equity = [cfg.initial];
+    for (let i = 1; i < n; i++) {
+      const ret = closes[i] / closes[i - 1] - 1;
+      let pnl = equity[equity.length - 1] * positions[i - 1] * ret;
+      let fee = 0;
+      if (positions[i] !== positions[i - 1]) fee = equity[equity.length - 1] * cfg.feeRate * Math.abs(positions[i] - positions[i - 1]);
+      equity.push(Math.max(0, equity[equity.length - 1] + pnl - fee));
+    }
+    const total = equity[n - 1] / cfg.initial - 1;
+    const dayPnl = n >= 2 ? equity[n - 1] - equity[n - 2] : 0;
+    const dayRet = n >= 2 && equity[n - 2] ? dayPnl / equity[n - 2] : 0;
+    let peak = equity[0], maxDD = 0;
+    equity.forEach(v => { peak = Math.max(peak, v); maxDD = Math.max(maxDD, (peak - v) / peak); });
+    const rets = [];
+    for (let i = 1; i < n; i++) if (equity[i - 1] > 0) rets.push(equity[i] / equity[i - 1] - 1);
+    const mean = rets.reduce((a, b) => a + b, 0) / (rets.length || 1);
+    const sd = Math.sqrt(rets.reduce((a, b) => a + (b - mean) * (b - mean), 0) / (rets.length || 1));
+    const ann = stock.market === "crypto" ? 365 : 252;
+    const sharpe = sd > 1e-12 ? mean / sd * Math.sqrt(ann) : 0;
+    let changes = 0;
+    for (let i = 1; i < n; i++) if (positions[i] !== positions[i - 1]) changes++;
+
+    const trades = [];
+    let entry = null;
+    for (let i = 0; i < n; i++) {
+      if (i > 0 && positions[i] !== positions[i - 1]) {
+        if (positions[i] === 1) {
+          entry = { entryDate: dates[i], entryPrice: closes[i] };
+        } else if (entry) {
+          trades.push({ ...entry, exitDate: dates[i], exitPrice: closes[i], ret: closes[i] / entry.entryPrice - 1, status: "已平" });
+          entry = null;
+        }
+      }
+    }
+    if (entry) trades.push({ ...entry, exitDate: "", exitPrice: closes[n - 1], ret: closes[n - 1] / entry.entryPrice - 1, status: "持仓中" });
+
+    return { cfg, stock, dates, closes, positions, equity, total, dayPnl, dayRet, maxDD, sharpe, changes, trades };
+  }
+
+  function runBacktest() {
+    let cfg;
+    try { cfg = readStrategyForm(); } catch (e) { toast(e.message); return; }
+    let result;
+    try { result = backtestJS(cfg); } catch (e) { toast(e.message); return; }
+    APP.lastBacktest = result;
+    APP.form = cfg;
+    renderBacktest(result);
+    toast("回测完成");
+  }
+
+  function renderBacktest(r) {
+    const title = document.getElementById("backtestTitle");
+    if (title) title.textContent = (r.stock.name || r.stock.symbol) + " · " + r.cfg.type.toUpperCase() + " · " + r.dates.length + " 根日线";
+    const cards = document.getElementById("backtestCards");
+    if (cards) {
+      const p = r.positions[r.positions.length - 1];
+      cards.innerHTML = [
+        resultCard("累计收益", pct(r.total), r.total >= 0 ? "up" : "down"),
+        resultCard("最新日盈亏", money(r.dayPnl, r.stock.currency), r.dayPnl >= 0 ? "up" : "down"),
+        resultCard("最大回撤", (r.maxDD * 100).toFixed(2) + "%", ""),
+        resultCard("Sharpe", r.sharpe.toFixed(2), ""),
+        resultCard("调仓次数", r.changes, ""),
+        resultCard("当前仓位", p ? "多头" : "空仓", p ? "up" : "")
+      ].join("");
+    }
+    const body = document.getElementById("tradesBody");
+    if (body) {
+      const rows = r.trades.slice(-20).reverse();
+      body.innerHTML = rows.length ? rows.map(t =>
+        "<tr><td>" + esc(t.entryDate) + "</td><td>" + num(t.entryPrice, 2) +
+        "</td><td>" + (t.exitDate ? esc(t.exitDate) : "—") + "</td><td>" + num(t.exitPrice, 2) +
+        '</td><td class="' + (t.ret >= 0 ? "up" : "down") + '">' + pct(t.ret) +
+        '</td><td><span class="status ' + (t.status === "持仓中" ? "warn" : "ok") + '">' + t.status + "</span></td></tr>"
+      ).join("") : '<tr><td colspan="6" class="empty">这段时间没有触发调仓</td></tr>';
+    }
+    requestAnimationFrame(drawBacktestCharts);
+  }
+
+  function resultCard(k, v, cls) {
+    return '<div class="result-card"><span class="k">' + k + '</span><span class="v ' + (cls || "") + '">' + v + "</span></div>";
+  }
+
+  function drawBacktestCharts() {
+    const r = APP.lastBacktest;
+    if (!r) return;
+    const equityCanvas = document.getElementById("equityChart");
+    if (equityCanvas) drawSimpleLine(equityCanvas, r.dates, r.equity, "#22d3ee", 240, false);
+    const dd = [];
+    let peak = r.equity[0];
+    r.equity.forEach(v => { peak = Math.max(peak, v); dd.push(v / peak - 1); });
+    const ddCanvas = document.getElementById("ddChart");
+    if (ddCanvas) drawSimpleLine(ddCanvas, r.dates, dd, "#fb7185", 150, true);
+  }
+
+  function drawSimpleLine(canvas, dates, values, color, height, zeroLine) {
+    const rect = canvas.parentElement.getBoundingClientRect();
+    const w = Math.max(280, Math.floor(rect.width));
+    const h = height || 240;
+    const dpr = window.devicePixelRatio || 1;
+    canvas.width = Math.round(w * dpr); canvas.height = Math.round(h * dpr);
+    canvas.style.width = w + "px"; canvas.style.height = h + "px";
+    const ctx = canvas.getContext("2d");
+    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    ctx.clearRect(0, 0, w, h);
+    const n = values.length;
+    if (n < 2) return;
+    const pad = { l: 58, r: 12, t: 12, b: 22 };
+    const plotW = w - pad.l - pad.r, plotH = h - pad.t - pad.b;
+    let min = Math.min(...values), max = Math.max(...values);
+    if (zeroLine) max = Math.max(max, 0);
+    const span = (max - min) || Math.max(1, Math.abs(max) * 0.01);
+    min -= span * 0.08; max += span * 0.08;
+    const xAt = i => pad.l + (i / (n - 1)) * plotW;
+    const yAt = v => pad.t + ((max - v) / (max - min)) * plotH;
+    ctx.strokeStyle = "rgba(148,163,184,.12)"; ctx.lineWidth = 1;
+    ctx.font = '10px sans-serif'; ctx.textAlign = "right";
+    for (let g = 0; g <= 4; g++) {
+      const y = pad.t + (plotH * g) / 4;
+      const v = max - ((max - min) * g) / 4;
+      ctx.beginPath(); ctx.moveTo(pad.l, y); ctx.lineTo(w - pad.r, y); ctx.stroke();
+      ctx.fillStyle = "#6b7c9c"; ctx.fillText(zeroLine ? (v * 100).toFixed(1) + "%" : compact(v), pad.l - 8, y + 3);
+    }
+    ctx.textAlign = "center";
+    [0, Math.floor((n - 1) / 2), n - 1].forEach(i => { ctx.fillStyle = "#6b7c9c"; ctx.fillText(dates[i].slice(5), xAt(i), h - 6); });
+    if (zeroLine) {
+      const y0 = yAt(0);
+      ctx.strokeStyle = "rgba(148,163,184,.3)"; ctx.setLineDash([4, 4]);
+      ctx.beginPath(); ctx.moveTo(pad.l, y0); ctx.lineTo(w - pad.r, y0); ctx.stroke(); ctx.setLineDash([]);
+    }
+    const grad = ctx.createLinearGradient(0, pad.t, 0, pad.t + plotH);
+    grad.addColorStop(0, hexA(color, zeroLine ? 0.22 : 0.25)); grad.addColorStop(1, hexA(color, 0));
+    ctx.beginPath(); ctx.moveTo(xAt(0), yAt(values[0]));
+    for (let i = 1; i < n; i++) ctx.lineTo(xAt(i), yAt(values[i]));
+    ctx.lineTo(xAt(n - 1), pad.t + plotH); ctx.lineTo(xAt(0), pad.t + plotH); ctx.closePath();
+    ctx.fillStyle = grad; ctx.fill();
+    ctx.beginPath(); ctx.moveTo(xAt(0), yAt(values[0]));
+    for (let i = 1; i < n; i++) ctx.lineTo(xAt(i), yAt(values[i]));
+    ctx.strokeStyle = color; ctx.lineWidth = 1.8; ctx.stroke();
+  }
+
+  function saveStrategy() {
+    const r = APP.lastBacktest;
+    if (!r) { toast("先运行一次回测"); return; }
+    let name = (document.getElementById("strategyName").value || "").trim();
+    if (!name) name = (r.stock.name || r.stock.symbol) + " · " + r.cfg.type + " · " + r.dates.length + "日";
+    APP.saved.unshift({
+      id: "s" + Date.now(),
+      name: name,
+      symbol: r.cfg.symbol,
+      type: r.cfg.type,
+      params: r.cfg.params,
+      feeRate: r.cfg.feeRate,
+      initial: r.cfg.initial,
+      days: r.cfg.days,
+      createdAt: new Date().toISOString()
+    });
+    writeLS(LS.saved, APP.saved);
+    renderMy();
+    toast("已保存到我的策略");
+  }
+
+  // ----------------------------- personal desk -----------------------------
+  function initMyTab() {
+    const defaults = (D.config && D.config.strategies ? D.config.strategies : []).map((s, i) => ({
+      id: "default-" + (s.id || i),
+      name: (s.id ? s.id + " · " : "") + (s.name || "策略"),
+      symbol: s.symbol,
+      type: s.type,
+      params: s.params || {},
+      feeRate: s.fee_rate == null ? 0.001 : s.fee_rate,
+      initial: D.initialCapital || 100000,
+      days: D.config.historyDays || 300,
+      createdAt: ""
+    }));
+    const stored = readLS(LS.saved, null);
+    APP.saved = Array.isArray(stored) ? stored : defaults;
+    APP.notes = readLS(LS.notes, "") || "";
+    const notes = document.getElementById("notes");
+    if (notes) notes.value = APP.notes;
+    const save = document.getElementById("saveNotes");
+    if (save) save.addEventListener("click", () => {
+      const el = document.getElementById("notes");
+      APP.notes = el ? el.value : "";
+      writeLS(LS.notes, APP.notes);
+      toast("备注已保存");
+    });
+    const watch = document.getElementById("watchlist");
+    if (watch) watch.addEventListener("click", e => {
+      const rm = e.target.closest("[data-remove]");
+      if (rm) { e.stopPropagation(); toggleWatch(rm.dataset.remove); return; }
+      const card = e.target.closest("[data-symbol]");
+      if (card) { APP.stockSymbol = card.dataset.symbol; fillSymbolSelect(document.getElementById("stockSelect"), APP.stockSymbol); switchTab("stock"); }
+    });
+    const saved = document.getElementById("savedStrategies");
+    if (saved) saved.addEventListener("click", e => {
+      const el = e.target.closest("[data-action]");
+      if (!el) return;
+      const id = el.dataset.id;
+      const item = APP.saved.find(x => x.id === id);
+      if (!item) return;
+      if (el.dataset.action === "load") loadSaved(item);
+      else if (el.dataset.action === "run") { loadSaved(item); setTimeout(runBacktest, 60); }
+      else if (el.dataset.action === "del") { APP.saved = APP.saved.filter(x => x.id !== id); writeLS(LS.saved, APP.saved); renderMy(); toast("已删除"); }
+    });
+    renderMy();
+  }
+
+  function loadSaved(item) {
+    APP.form = {
+      symbol: item.symbol, type: item.type, params: { ...item.params },
+      feeRate: item.feeRate, initial: item.initial, days: item.days
+    };
+    document.getElementById("strategySymbol").value = item.symbol;
+    document.getElementById("strategyType").value = item.type;
+    document.getElementById("strategyFee").value = (item.feeRate * 100).toFixed(3);
+    document.getElementById("strategyInitial").value = item.initial;
+    document.getElementById("strategyDays").value = String(item.days);
+    document.getElementById("strategyName").value = item.name;
+    renderParamFields();
+    switchTab("strategy");
+    toast("已加载：" + item.name);
+  }
+
+  function renderMy() {
+    const watch = document.getElementById("watchlist");
+    if (watch) {
+      const items = APP.watchlist.map(bySymbol).filter(Boolean);
+      watch.innerHTML = items.length ? items.map(s => {
+        const st = s.stats || {};
+        const up = (st.dayChange || 0) >= 0;
+        return '<div class="watch-card" data-symbol="' + esc(s.symbol) + '">' +
+          '<button class="rm" data-remove="' + esc(s.symbol) + '" title="移出自选">×</button>' +
+          "<b>" + esc(s.name) + '</b><div class="code">' + esc(s.symbol) + " · " + marketLabel(s.market) + '</div>' +
+          '<div class="px">' + num(st.last, 2) + ' <span class="' + (up ? "up" : "down") + '" style="font-size:11px">' + pct(st.dayChange) + "</span></div></div>";
+      }).join("") : '<div class="empty">还没有自选，去“选股 / 个股”点“加入自选”。</div>';
+    }
+    const saved = document.getElementById("savedStrategies");
+    if (saved) {
+      saved.innerHTML = APP.saved.length ? APP.saved.map(item => {
+        const p = item.params || {};
+        const pText = item.type === "ma" ? "MA" + p.fast + "/" + p.slow :
+          item.type === "rsi" ? "RSI" + p.period + " " + p.oversold + "/" + p.overbought :
+            (p.lookback || 20) + "日 > " + ((p.threshold || 0.05) * 100).toFixed(1) + "%";
+        return '<div class="saved-row"><div><b>' + esc(item.name) + '</b>' +
+          '<div class="meta">' + esc(item.symbol) + " · " + esc(item.type) + " · " + esc(pText) +
+          " · 手续费 " + (item.feeRate * 100).toFixed(3) + "% · " + item.days + "日</div></div>" +
+          '<div class="saved-actions"><button class="btn" data-action="load" data-id="' + esc(item.id) + '">加载</button>' +
+          '<button class="btn primary" data-action="run" data-id="' + esc(item.id) + '">运行</button>' +
+          '<button class="btn" data-action="del" data-id="' + esc(item.id) + '">删除</button></div></div>';
+      }).join("") : '<div class="empty">还没有保存策略。去“策略定制”跑一次，点“保存为我的策略”。</div>';
+    }
+    const notes = document.getElementById("notes");
+    if (notes && document.activeElement !== notes) notes.value = APP.notes || "";
+    renderAutoPanel();
+  }
+
+  function renderAutoPanel() {
+    const box = document.getElementById("autoPanel");
+    if (!box) return;
+    const paused = !!D.autoPaused;
+    const updated = D.autoPauseUpdatedAt ? '<p class="muted">状态更新：' + esc(D.autoPauseUpdatedAt) + '</p>' : "";
+    if (paused) {
+      box.innerHTML = '<div class="auto-state paused">' +
+        '<div class="head"><span class="status warn">已暂停</span><b>不会触发 DSH Agent，不消耗 token</b></div>' +
+        '<p>本机已暂停：<code>run_review.ps1</code> 会直接退出；Windows 任务（如果存在）已禁用；DSH 22:00 定时已移除。</p>' +
+        '<p>恢复：双击 <code>resume_auto_review.cmd</code>。再次暂停：<code>pause_auto_review.cmd</code>。</p>' +
+        '<p>只想跑一次：<code>run_review.ps1 -Force</code>。</p>' +
+        '<p>托管站点：在 GitHub Actions 页面右上角 Disable workflow，或暂停仓库定时。</p>' +
+        updated + '</div>';
+    } else {
+      box.innerHTML = '<div class="auto-state">' +
+        '<div class="head"><span class="status ok">运行中</span><b>定时会正常执行</b></div>' +
+        '<p>暂停：双击 <code>pause_auto_review.cmd</code>；它会写入状态并禁用 Windows 任务（若已注册）。</p>' +
+        '<p>托管站点：在 GitHub Actions 页面 Disable workflow，或暂停仓库定时。</p>' +
+        updated + '</div>';
+    }
+  }
+
+
+  function init() {
+    renderHeader();
+    renderHero();
+    renderCharts();
+    renderDetail();
+    renderRules();
+    renderQuality();
+    initTabs();
+    initStockTab();
+    initStrategyTab();
+    initMyTab();
+    requestAnimationFrame(initCharts);
+    const btn = document.getElementById("refresh");
+    if (btn) btn.addEventListener("click", () => location.reload());
+    const initial = (location.hash || "#overview").slice(1);
+    switchTab(initial, false);
+  }
+
+  init();
+})();
+</script>
+</body>
+</html>

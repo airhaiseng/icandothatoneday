@@ -1,0 +1,37 @@
+{
+  "initial_capital": 100000,
+  "history_days": 300,
+  "timezone_offset_hours": 8,
+  "strategies": [
+    {
+      "id": "A",
+      "name": "双均线",
+      "symbol": "BTCUSDT",
+      "market": "crypto",
+      "type": "ma",
+      "currency": "USDT",
+      "fee_rate": 0.001,
+      "params": { "fast": 5, "slow": 20 }
+    },
+    {
+      "id": "B",
+      "name": "RSI超买超卖",
+      "symbol": "ETHUSDT",
+      "market": "crypto",
+      "type": "rsi",
+      "currency": "USDT",
+      "fee_rate": 0.001,
+      "params": { "period": 14, "oversold": 30, "overbought": 70 }
+    },
+    {
+      "id": "C",
+      "name": "20日动量",
+      "symbol": "sh600519",
+      "market": "ashare",
+      "type": "momentum",
+      "currency": "CNY",
+      "fee_rate": 0.0003,
+      "params": { "lookback": 20, "threshold": 0.05 }
+    }
+  ]
+}
