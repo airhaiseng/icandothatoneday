@@ -1,0 +1,6 @@
+__pycache__/
+*.pyc
+daily_review/logs/
+daily_review/dashboard.html
+daily_review/reports/*.md
+!daily_review/reports/latest.md
