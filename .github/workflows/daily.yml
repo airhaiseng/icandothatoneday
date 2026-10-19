@@ -2,8 +2,10 @@ name: Daily review
 
 on:
   schedule:
-    # 22:00 Asia/Shanghai = 14:00 UTC. GitHub Actions may delay a few minutes.
+    # 22:00 Asia/Shanghai = 14:00 UTC (A-share / crypto review)
     - cron: "0 14 * * *"
+    # 06:00 Asia/Shanghai next day = 22:00 UTC (US close refresh)
+    - cron: "0 22 * * *"
   workflow_dispatch:
 
 permissions:
