@@ -1,5 +1,7 @@
 {
   "initial_capital": 100000,
+  "start_date": "2025-01-01",
+  "warmup_days": 120,
   "history_days": 300,
   "timezone_offset_hours": 8,
   "strategies": [

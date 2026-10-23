@@ -286,6 +286,50 @@ def fetch_ashare(symbol: str, limit: int):
     raise RuntimeError("A-share fetch failed; " + " | ".join(errors))
 
 
+# Eastmoney US market ids: 105 = NASDAQ, 106 = NYSE/AMEX.
+US_SECIDS = {
+    "AAPL": "105.AAPL", "MSFT": "105.MSFT", "NVDA": "105.NVDA",
+    "TSLA": "105.TSLA", "AMZN": "105.AMZN", "GOOGL": "105.GOOGL",
+    "META": "105.META", "BABA": "106.BABA", "JPM": "106.JPM",
+    "V": "106.V", "KO": "106.KO", "DIS": "106.DIS",
+}
+
+
+def fetch_us(symbol: str, limit: int):
+    """Free US daily bars from Eastmoney (qfq). Symbol is the ticker, e.g. AAPL."""
+    errors = []
+    ticker = symbol.upper().replace("US", "", 1) if symbol.upper().startswith("US") else symbol.upper()
+    candidates = []
+    if ticker in US_SECIDS:
+        candidates.append(US_SECIDS[ticker])
+    for prefix in ("105", "106"):
+        item = f"{prefix}.{ticker}"
+        if item not in candidates:
+            candidates.append(item)
+
+    for secid in candidates:
+        try:
+            url = ("https://push2his.eastmoney.com/api/qt/stock/kline/get?"
+                   f"secid={secid}&fields1=f1,f2,f3,f4,f5,f6&fields2=f51,f52,f53,f54,f55,f56"
+                   f"&klt=101&fqt=1&end=20500101&lmt={limit}")
+            bars = parse_eastmoney(http_text(url))
+            if len(bars) < 40:
+                raise RuntimeError(f"only {len(bars)} bars")
+            return {
+                "symbol": ticker,
+                "market": "us",
+                "bars": bars,
+                "source": f"Eastmoney US daily K-line (qfq, {secid})",
+                "current_price": bars[-1]["close"],
+                "fetched_at": iso_now(),
+                "stale": False,
+                "error": "",
+            }
+        except Exception as exc:
+            errors.append(f"{secid}: {type(exc).__name__}: {exc}")
+    raise RuntimeError("US fetch failed; " + " | ".join(errors))
+
+
 def cache_path(symbol: str) -> Path:
     return DATA_DIR / f"{safe_symbol(symbol)}.json"
 
@@ -312,15 +356,18 @@ def load_cache(symbol: str):
         return None
 
 
-def load_market(strategy: dict, limit: int) -> dict:
+def load_market(strategy: dict, limit: int, save: bool = True) -> dict:
     symbol = strategy["symbol"]
     market = strategy["market"]
     try:
         if market == "crypto":
             md = fetch_crypto(symbol, limit)
+        elif market == "us":
+            md = fetch_us(symbol, limit)
         else:
             md = fetch_ashare(symbol, limit)
-        save_cache(md)
+        if save:
+            save_cache(md)
         return md
     except Exception as exc:
         cached = load_cache(symbol)
@@ -441,19 +488,50 @@ def build_positions(strategy: dict, closes):
     raise ValueError(f"unknown strategy type: {typ}")
 
 
-def compute(strategy: dict, market_data: dict, initial: float) -> dict:
+def compute(strategy: dict, market_data: dict, initial: float, start_date: str | None = None) -> dict:
     bars = market_data.get("bars") or []
     if len(bars) < 30:
         return {"ok": False, "error": market_data.get("error") or "not enough bars", "market": market_data}
 
     closes = [b["close"] for b in bars]
     dates = [b["date"] for b in bars]
-    positions, indicators = build_positions(strategy, closes)
+    positions_all, indicators_all = build_positions(strategy, closes)
     fee_rate = float(strategy.get("fee_rate", 0.0))
+    bars_fetched = len(bars)
+
+    # Fixed-window anchor.  Signals are still computed on the whole series, so the
+    # indicators are warmed up by the bars before start_date; but equity, drawdown
+    # and Sharpe are only measured from start_date onward.  Without this the
+    # headline 累计收益 moves every single day as the fetch window slides, which
+    # looks like performance changes that never happened.
+    start_idx = 0
+    window_note = ""
+    if start_date:
+        try:
+            date.fromisoformat(str(start_date))
+        except ValueError:
+            window_note = f"start_date={start_date!r} 不是合法日期，按全区间计算"
+        else:
+            start_idx = next((i for i, d in enumerate(dates) if d >= start_date), len(dates))
+            if start_idx >= len(dates):
+                start_idx = 0
+                window_note = f"行情未覆盖起始日 {start_date}，按全区间计算"
+            elif len(dates) - start_idx < 30:
+                start_idx = max(0, len(dates) - 30)
+                window_note = f"起始日 {start_date} 之后不足 30 根日线，已回退到最近 30 根"
+
+    bars = bars[start_idx:]
+    dates = dates[start_idx:]
+    closes = closes[start_idx:]
+    positions = positions_all[start_idx:]
+    indicators = {k: (v[start_idx:] if isinstance(v, list) else v) for k, v in indicators_all.items()}
     n = len(bars)
 
     equity = [float(initial)]
-    fees = []
+    # A position already open on the first bar of the window is entered at that
+    # close, so it pays the entry fee once instead of silently starting free.
+    if positions[0]:
+        equity[0] = max(0.0, equity[0] - equity[0] * fee_rate * abs(positions[0]))
     for i in range(1, n):
         day_return = closes[i] / closes[i - 1] - 1.0
         pnl = equity[-1] * positions[i - 1] * day_return
@@ -461,7 +539,6 @@ def compute(strategy: dict, market_data: dict, initial: float) -> dict:
         if positions[i] != positions[i - 1]:
             fee = equity[-1] * fee_rate * abs(positions[i] - positions[i - 1])
         equity.append(max(0.0, equity[-1] + pnl - fee))
-        fees.append(fee)
 
     eq_prev = equity[-2] if len(equity) >= 2 else equity[-1]
     latest_day_pnl = equity[-1] - eq_prev
@@ -522,6 +599,12 @@ def compute(strategy: dict, market_data: dict, initial: float) -> dict:
         "dates": dates,
         "closes": closes,
         "positions": positions,
+        "window_start": dates[0],
+        "window_end": dates[-1],
+        "window_bars": n,
+        "window_note": window_note,
+        "bars_fetched": bars_fetched,
+        "start_date": start_date,
         "indicators": indicators,
         "latest": latest,
         "equity": equity,
@@ -675,6 +758,9 @@ def render_report(results, errors, generated_at: datetime, initial: float) -> st
         lines.append(f"- 账户权益：**{fmt_money(r['equity_now'], cur)}**；累计 **{fmt_pct(r['total_return'])}**；"
                      f"最大回撤 **{r['max_drawdown'] * 100:.2f}%**；Sharpe **{r['sharpe']:.2f}**；"
                      f"调仓次数 **{r['trade_count']}**")
+        note = f"，{r['window_note']}" if r.get("window_note") else ""
+        lines.append(f"- 回测区间：**{r['window_start']} ~ {r['window_end']}**"
+                     f"（{r['window_bars']} 根日线，固定起始日口径{note}）")
         if s["type"] == "ma":
             lines.append(f"- 指标：MA{ r['latest'].get('fast', 5) }="
                          f"{fmt_num(r['latest'].get('ma_fast'), 4)}，MA{ r['latest'].get('slow', 20) }="
@@ -729,6 +815,8 @@ def render_report(results, errors, generated_at: datetime, initial: float) -> st
     lines.append("- 数据：Binance 公开行情镜像（crypto 日线，UTC 0 点切日）与新浪/腾讯/东方财富 A 股日线；免费源可能延迟或限流。")
     lines.append("- 信号：双均线按 MA5/MA20 多空；RSI 在“上穿 30”买入、“下穿 70”卖出；动量在 20 日涨幅 >5% 时持有。")
     lines.append("- 成交：信号在收盘确认，按同一收盘价成交；每边收取配置中的手续费；未计滑点、冲击成本、税费。")
+    lines.append("- 窗口：累计收益/回撤/Sharpe 一律从配置的 `start_date` 起算，起始日之前的行情只用于指标预热；"
+                 "每天抓取的 K 线根数变化不会改写历史净值。窗口首日已持仓的，按首日收盘补记一次买入手续费。")
     lines.append("- A 股：未模拟 T+1、涨跌停、停牌；crypto：UTC 日线，22:00 复盘时最新完整日线通常为前一日 UTC。")
     lines.append("- 本报告是规则化回测/复盘，不是实盘交易建议；历史表现不代表未来收益。")
     lines.append("")
@@ -745,8 +833,20 @@ def append_metrics(results, report_date: str) -> None:
     path = REPORT_DIR / "metrics.csv"
     fields = ["date", "strategy_id", "strategy", "symbol", "position", "latest_day_pnl",
               "latest_day_return", "float_pnl", "total_return", "max_drawdown",
-              "sharpe", "trade_count", "close", "current_price", "source", "stale"]
+              "sharpe", "trade_count", "close", "current_price", "source", "stale",
+              "window_start", "window_end"]
     new_file = not path.exists()
+    if not new_file:
+        try:
+            with path.open("r", encoding="utf-8-sig", newline="") as fh:
+                header = next(csv.reader(fh), [])
+        except Exception:
+            header = []
+        if header != fields:
+            backup = path.with_name(f"metrics-{datetime.now(BEIJING):%Y%m%d-%H%M%S}.csv")
+            path.replace(backup)
+            print(f"[review] metrics.csv 口径变更，旧文件保留为 {backup.name}", flush=True)
+            new_file = True
     with path.open("a", newline="", encoding="utf-8-sig") as fh:
         writer = csv.DictWriter(fh, fieldnames=fields)
         if new_file:
@@ -772,6 +872,8 @@ def append_metrics(results, report_date: str) -> None:
                 "current_price": r["current_price"],
                 "source": r["market"].get("source", ""),
                 "stale": bool(r["market"].get("stale")),
+                "window_start": r.get("window_start", ""),
+                "window_end": r.get("window_end", ""),
             })
 
 
@@ -781,7 +883,24 @@ def main() -> int:
         return 2
     config = json.loads(CONFIG_PATH.read_text(encoding="utf-8"))
     initial = float(config.get("initial_capital", 100000))
+    start_date = config.get("start_date") or None
+    warmup_days = int(config.get("warmup_days", 120))
     limit = int(config.get("history_days", 300))
+    if start_date:
+        try:
+            anchor = date.fromisoformat(str(start_date))
+        except ValueError:
+            print(f"[review] invalid start_date {start_date!r}; fall back to full range", file=sys.stderr)
+            start_date = None
+        else:
+            # Enough calendar days to reach start_date plus the warmup buffer.
+            # Requesting calendar days as bar count over-requests for A-shares
+            # (one bar per trading day), which is harmless: the extra bars are
+            # only used to warm the indicators up.
+            needed = (datetime.now(BEIJING).date() - anchor).days + warmup_days + 20
+            limit = max(limit, min(1000, needed))
+            print(f"[review] window {start_date} -> today, fetch limit {limit} bars "
+                  f"(warmup {warmup_days}d)", flush=True)
 
     results = []
     errors = []
@@ -794,13 +913,15 @@ def main() -> int:
             print(f"[review]   FAILED: {err['error']}", flush=True)
             continue
         try:
-            result = compute(strategy, md, initial)
+            result = compute(strategy, md, initial, start_date)
             if not result.get("ok"):
                 errors.append({"symbol": strategy["symbol"], "error": result.get("error", "compute failed")})
                 print(f"[review]   FAILED: {result.get('error')}", flush=True)
                 continue
             results.append(result)
-            print(f"[review]   OK  bars={len(result['bars'])} last={result['bars'][-1]['date']} "
+            print(f"[review]   OK  bars={result['window_bars']}/{result['bars_fetched']} "
+                  f"window={result['window_start']}..{result['window_end']} "
+                  f"last={result['bars'][-1]['date']} "
                   f"pos={result['position_now']} ret={result['total_return']:.4%}", flush=True)
         except Exception as exc:
             errors.append({"symbol": strategy["symbol"], "error": f"{type(exc).__name__}: {exc}"})

@@ -36,6 +36,12 @@ UNIVERSE = [
     ("sh688981", "中芯国际", "ashare", "CNY"),
     ("sh600900", "长江电力", "ashare", "CNY"),
     ("sh601899", "紫金矿业", "ashare", "CNY"),
+    ("AAPL", "苹果", "us", "USD"),
+    ("MSFT", "微软", "us", "USD"),
+    ("NVDA", "英伟达", "us", "USD"),
+    ("TSLA", "特斯拉", "us", "USD"),
+    ("BABA", "阿里巴巴", "us", "USD"),
+    ("JPM", "摩根大通", "us", "USD"),
     ("BTCUSDT", "比特币", "crypto", "USDT"),
     ("ETHUSDT", "以太坊", "crypto", "USDT"),
     ("SOLUSDT", "Solana", "crypto", "USDT"),
@@ -77,7 +83,7 @@ def build_universe_item(symbol: str, name: str, market: str, currency: str) -> d
     if OFFLINE:
         md = load_cache(symbol)
     else:
-        md = review.load_market({"symbol": symbol, "market": market}, 320)
+        md = review.load_market({"symbol": symbol, "market": market}, 320, save=False)
         time.sleep(0.15)
     if len(md.get("bars") or []) < 60:
         md = load_cache(symbol)
@@ -151,6 +157,7 @@ def build_universe_item(symbol: str, name: str, market: str, currency: str) -> d
 def main() -> int:
     config = json.loads((BASE / "config.json").read_text(encoding="utf-8"))
     initial = float(config.get("initial_capital", 100000))
+    start_date = config.get("start_date") or None
 
     strategies = []
     warnings = []
@@ -159,7 +166,7 @@ def main() -> int:
         if not md.get("bars"):
             warnings.append(f"{s['id']} {s['symbol']} 无行情缓存")
             continue
-        result = review.compute(s, md, initial)
+        result = review.compute(s, md, initial, start_date)
         if not result.get("ok"):
             warnings.append(f"{s['id']} {s['symbol']} 计算失败: {result.get('error')}")
             continue
@@ -261,6 +268,7 @@ def main() -> int:
         "warnings": warnings,
         "config": {
             "historyDays": config.get("history_days", 300),
+            "startDate": config.get("start_date", ""),
             "strategies": config.get("strategies", []),
         },
     }

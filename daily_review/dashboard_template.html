@@ -55,6 +55,7 @@
     transition:background .15s, border-color .15s, transform .15s;
   }
   .btn:hover{background:rgba(148,163,184,.12);border-color:rgba(148,163,184,.3);transform:translateY(-1px)}
+  .btn:disabled{opacity:.42;cursor:not-allowed;transform:none}
   .btn.primary{border-color:rgba(34,211,238,.35);background:rgba(34,211,238,.12);color:#c8f8ff}
   h1{font-size:clamp(30px,4vw,46px); line-height:1.08; letter-spacing:-.03em; margin:22px 0 8px}
   h1 span{background:linear-gradient(90deg,#e6edf9 10%,#67e8f9 55%,#c4b5fd 100%);-webkit-background-clip:text;background-clip:text;color:transparent}
@@ -773,7 +774,7 @@ window.__DASHBOARD__ = __DASHBOARD_DATA__;
     return String(s == null ? "" : s).replace(/[&<>"']/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
   }
   function bySymbol(sym) { return (D.universe || []).find(x => x.symbol === sym) || null; }
-  function marketLabel(m) { return m === "crypto" ? "Crypto" : "A 股"; }
+  function marketLabel(m) { return m === "crypto" ? "Crypto" : m === "us" ? "美股" : "A 股"; }
   function stat(k, v, cls) {
     return '<div class="stat"><span class="k">' + k + '</span><span class="v ' + (cls || "") + '">' + v + '</span></div>';
   }
@@ -795,7 +796,7 @@ window.__DASHBOARD__ = __DASHBOARD_DATA__;
 
   function fillSymbolSelect(select, selected) {
     if (!select) return;
-    const groups = [["ashare", "A 股"], ["crypto", "Crypto"]];
+    const groups = [["ashare", "A 股"], ["us", "美股"], ["crypto", "Crypto"]];
     let html = "";
     groups.forEach(([market, label]) => {
       const items = (D.universe || []).filter(x => x.market === market);
@@ -1509,21 +1510,88 @@ window.__DASHBOARD__ = __DASHBOARD_DATA__;
     if (!box) return;
     const paused = !!D.autoPaused;
     const updated = D.autoPauseUpdatedAt ? '<p class="muted">状态更新：' + esc(D.autoPauseUpdatedAt) + '</p>' : "";
-    if (paused) {
-      box.innerHTML = '<div class="auto-state paused">' +
-        '<div class="head"><span class="status warn">已暂停</span><b>不会触发 DSH Agent，不消耗 token</b></div>' +
-        '<p>本机已暂停：<code>run_review.ps1</code> 会直接退出；Windows 任务（如果存在）已禁用；DSH 22:00 定时已移除。</p>' +
-        '<p>恢复：双击 <code>resume_auto_review.cmd</code>。再次暂停：<code>pause_auto_review.cmd</code>。</p>' +
-        '<p>只想跑一次：<code>run_review.ps1 -Force</code>。</p>' +
-        '<p>托管站点：在 GitHub Actions 页面右上角 Disable workflow，或暂停仓库定时。</p>' +
-        updated + '</div>';
-    } else {
-      box.innerHTML = '<div class="auto-state">' +
-        '<div class="head"><span class="status ok">运行中</span><b>定时会正常执行</b></div>' +
-        '<p>暂停：双击 <code>pause_auto_review.cmd</code>；它会写入状态并禁用 Windows 任务（若已注册）。</p>' +
-        '<p>托管站点：在 GitHub Actions 页面 Disable workflow，或暂停仓库定时。</p>' +
-        updated + '</div>';
+    const local = isLocalControl();
+    const toggleText = paused ? "恢复自动复盘" : "暂停自动复盘";
+    const head = paused
+      ? '<div class="head"><span class="status warn">已暂停</span><b>不会触发 DSH Agent，不消耗 token</b></div>'
+      : '<div class="head"><span class="status ok">运行中</span><b>定时会正常执行</b></div>';
+    const body = paused
+      ? '<p>本机已暂停：<code>run_review.ps1</code> 会直接退出；Windows 任务（如果存在）已禁用；DSH 22:00 定时已移除。</p>' +
+        '<p>只想跑一次：<code>run_review.ps1 -Force</code>。托管站点暂停：GitHub Actions → Disable workflow。</p>'
+      : '<p>暂停后 <code>run_review.ps1</code> 会直接退出，不跑 Python、不拉行情；Windows 任务（如果存在）会一并禁用。</p>' +
+        '<p>托管站点暂停：GitHub Actions → Disable workflow，或变量 <code>AUTO_REVIEW_PAUSED=true</code>。</p>';
+    const hint = local
+      ? '<p class="muted" id="autoControlHint">本地控制服务：已连接。切换只影响本机。</p>'
+      : '<p class="muted" id="autoControlHint">当前是静态页面（file:// 或 GitHub Pages）。要使用开关，先双击 <code>start_control_server.cmd</code>，再打开 <code>http://127.0.0.1:8777/</code>。</p>';
+    let taskLine = '<p class="muted">Windows 定时：状态未知（静态页面）</p>';
+    if (typeof D.taskExists === "boolean") {
+      taskLine = D.taskExists
+        ? '<p class="muted">Windows 定时：<b>' + esc(D.taskState || "Ready") + '</b> · 每天 22:00 · 零 token</p>'
+        : '<p class="muted">Windows 定时：未注册（可运行 <code>register_task.ps1</code>）</p>';
     }
+    box.innerHTML = '<div class="auto-state ' + (paused ? "paused" : "") + '">' +
+      head + body + taskLine +
+      '<div class="form-actions"><button class="btn ' + (paused ? "primary" : "") + '" id="autoToggle" type="button" ' + (local ? "" : "disabled") + '>' + toggleText + '</button>' +
+      '<button class="btn" id="autoRefresh" type="button" ' + (local ? "" : "disabled") + '>刷新状态</button></div>' +
+      hint + updated + '</div>';
+  }
+
+  function isLocalControl() {
+    return location.protocol.indexOf("http") === 0 &&
+      (location.hostname === "127.0.0.1" || location.hostname === "localhost");
+  }
+
+  async function refreshAutoStatus(showToast) {
+    try {
+      const res = await fetch("/api/status", { cache: "no-store" });
+      if (!res.ok) throw new Error("HTTP " + res.status);
+      const st = await res.json();
+      D.autoPaused = !!st.paused;
+      D.autoPauseUpdatedAt = st.updatedAt || "";
+      D.taskExists = !!st.taskExists;
+      D.taskState = st.taskState || "";
+      renderHeader();
+      renderAutoPanel();
+      if (showToast) toast("状态已刷新：" + (D.autoPaused ? "已暂停" : "运行中"));
+    } catch (e) {
+      const hint = document.getElementById("autoControlHint");
+      if (hint) hint.textContent = "无法连接本地控制服务；请运行 start_control_server.cmd，并打开 http://127.0.0.1:8777/";
+    }
+  }
+
+  async function toggleAutoReview() {
+    const target = D.autoPaused ? "/api/resume" : "/api/pause";
+    const btn = document.getElementById("autoToggle");
+    if (btn) btn.disabled = true;
+    try {
+      const res = await fetch(target, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: "{}"
+      });
+      if (!res.ok) throw new Error("HTTP " + res.status);
+      const st = await res.json();
+      D.autoPaused = !!st.paused;
+      D.autoPauseUpdatedAt = st.updatedAt || "";
+      D.taskExists = !!st.taskExists;
+      D.taskState = st.taskState || "";
+      renderHeader();
+      renderAutoPanel();
+      toast(D.autoPaused ? "已暂停自动复盘" : "已恢复自动复盘");
+    } catch (e) {
+      if (btn) btn.disabled = false;
+      toast("切换失败：" + e.message);
+    }
+  }
+
+  function initAutoControl() {
+    const panel = document.getElementById("autoPanel");
+    if (!panel) return;
+    panel.addEventListener("click", e => {
+      if (e.target.id === "autoToggle") toggleAutoReview();
+      else if (e.target.id === "autoRefresh") refreshAutoStatus(true);
+    });
+    if (isLocalControl()) refreshAutoStatus(false);
   }
 
 
@@ -1538,6 +1606,7 @@ window.__DASHBOARD__ = __DASHBOARD_DATA__;
     initStockTab();
     initStrategyTab();
     initMyTab();
+    initAutoControl();
     requestAnimationFrame(initCharts);
     const btn = document.getElementById("refresh");
     if (btn) btn.addEventListener("click", () => location.reload());

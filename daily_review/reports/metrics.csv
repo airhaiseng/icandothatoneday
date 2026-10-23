@@ -1,4 +1,4 @@
-﻿date,strategy_id,strategy,symbol,position,latest_day_pnl,latest_day_return,float_pnl,total_return,max_drawdown,sharpe,trade_count,close,current_price,source,stale
-2026-10-17,A,双均线,BTCUSDT,0,0.0,0.0,-0.0,0.03151531,0.1640082,0.2749,16,81491.04,81211.89,Binance market-data (data-api.binance.vision),False
-2026-10-17,B,RSI超买超卖,ETHUSDT,0,0.0,0.0,-0.0,0.16895962,0.35186441,0.6334,2,2402.82,2382.94,Binance market-data (data-api.binance.vision),False
-2026-10-17,C,20日动量,sh600519,0,0.0,0.0,0.0,-0.1182339,0.12391761,-1.2475,8,1329.0,1329.0,Sina finance daily K-line,False
+﻿date,strategy_id,strategy,symbol,position,latest_day_pnl,latest_day_return,float_pnl,total_return,max_drawdown,sharpe,trade_count,close,current_price,source,stale,window_start,window_end
+2026-10-23,A,双均线,BTCUSDT,0,0.0,0.0,0.0,-0.06873229,0.29888592,-0.0293,40,81416.09,81709.28,Binance market-data (data-api.binance.vision),False,2025-01-01,2026-10-22
+2026-10-23,B,RSI超买超卖,ETHUSDT,0,0.0,0.0,0.0,-0.30905606,0.57796086,-0.1164,4,2389.14,2400.06,Binance market-data (data-api.binance.vision),False,2025-01-01,2026-10-22
+2026-10-23,C,20日动量,sh600519,1,-25.3113,-0.0003,0.0,-0.15654292,0.18132987,-1.2142,21,1335.0,1335.0,Sina finance daily K-line,False,2025-01-02,2026-10-23

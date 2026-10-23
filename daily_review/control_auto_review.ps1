@@ -27,21 +27,25 @@ if ($Action -ne 'status') {
     Write-Host ("Auto review: " + ($(if ($paused) { 'PAUSED' } else { 'RUNNING' })))
 }
 
-# Disable/enable the optional Windows scheduled task. DSH's built-in scheduled
+# Disable/enable the optional Windows scheduled tasks. DSH's built-in scheduled
 # reminder is not controllable from a file; it was removed separately.
-$taskName = 'DSH-Daily-Review'
-$taskQuery = & schtasks.exe /Query /TN $taskName 2>$null
-$taskExists = ($LASTEXITCODE -eq 0)
-if ($taskExists -and $Action -ne 'status') {
-    if ($Action -eq 'pause') {
-        & schtasks.exe /Change /TN $taskName /DISABLE 2>$null | Out-Null
-        Write-Host "Windows task '$taskName' disabled."
+$taskNames = @('DSH-Daily-Review', 'DSH-US-Review')
+foreach ($taskName in $taskNames) {
+    $taskQuery = & schtasks.exe /Query /TN $taskName 2>$null
+    $taskExists = ($LASTEXITCODE -eq 0)
+    if ($taskExists -and $Action -ne 'status') {
+        if ($Action -eq 'pause') {
+            & schtasks.exe /Change /TN $taskName /DISABLE 2>$null | Out-Null
+            Write-Host "Windows task '$taskName' disabled."
+        } else {
+            & schtasks.exe /Change /TN $taskName /ENABLE 2>$null | Out-Null
+            Write-Host "Windows task '$taskName' enabled."
+        }
+    } elseif ($taskExists) {
+        Write-Host "Windows task '$taskName' found."
     } else {
-        & schtasks.exe /Change /TN $taskName /ENABLE 2>$null | Out-Null
-        Write-Host "Windows task '$taskName' enabled."
+        Write-Host "Windows task '$taskName' not found (optional)."
     }
-} elseif (-not $taskExists) {
-    Write-Host "Windows task '$taskName' not found (optional)."
 }
 
 # Repaint the local dashboard status badge without a network call.

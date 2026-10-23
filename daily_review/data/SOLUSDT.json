@@ -3,14 +3,6 @@
   "market": "crypto",
   "bars": [
     {
-      "date": "2025-12-03",
-      "open": 138.67,
-      "high": 146.08,
-      "low": 137.76,
-      "close": 144.67,
-      "volume": 3954144.805
-    },
-    {
       "date": "2025-12-04",
       "open": 144.67,
       "high": 146.91,
@@ -2553,11 +2545,19 @@
       "low": 101.25,
       "close": 103.47,
       "volume": 987026.484
+    },
+    {
+      "date": "2026-10-18",
+      "open": 103.46,
+      "high": 104.79,
+      "low": 100.43,
+      "close": 104.11,
+      "volume": 1521964.57
     }
   ],
   "source": "Binance market-data (data-api.binance.vision)",
-  "current_price": 102.08,
-  "fetched_at": "2026-10-18T14:52:55+00:00",
+  "current_price": 105.76,
+  "fetched_at": "2026-10-19T04:57:47+00:00",
   "stale": false,
   "error": ""
 }

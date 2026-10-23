@@ -1,5 +1,5 @@
-﻿{
-    "paused":  true,
-    "updatedAt":  "2026-10-18T23:21:49.6481831+08:00",
-    "reason":  "user requested temporary pause before upload"
+{
+  "paused": true,
+  "updatedAt": "2026-10-19T12:59:53+08:00",
+  "reason": "dashboard switch"
 }
